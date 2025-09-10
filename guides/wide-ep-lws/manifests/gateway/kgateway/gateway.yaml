@@ -1,0 +1,11 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: infra-wide-ep-inference-gateway
+spec:
+  gatewayClassName: "kgateway"
+  infrastructure:
+    parametersRef:
+      name: infra-wide-ep-inference-gateway
+      group: gateway.kgateway.dev
+      kind: GatewayParameters
