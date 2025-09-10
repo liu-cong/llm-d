@@ -1,0 +1,23 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: infra-wide-ep-inference-gateway
+  labels:
+    app.kubernetes.io/instance: infra-wide-ep
+    app.kubernetes.io/gateway: infra-wide-ep-inference-gateway
+    app.kubernetes.io/component: inference-gateway
+  annotations:
+spec:
+  listeners:
+    - port: 80
+      protocol: HTTP
+      name: default
+      path: /
+      allowedRoutes:
+        namespaces:
+          from: All
+  infrastructure:
+    parametersRef:
+      name: infra-wide-ep-inference-gateway
+      group: gateway.kgateway.dev
+      kind: GatewayParameters

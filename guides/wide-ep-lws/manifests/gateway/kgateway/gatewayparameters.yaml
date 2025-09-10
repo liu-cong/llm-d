@@ -1,0 +1,45 @@
+apiVersion: gateway.kgateway.dev/v1alpha1
+kind: GatewayParameters
+metadata:
+  name: infra-wide-ep-inference-gateway
+  labels: 
+    app.kubernetes.io/instance: infra-wide-ep
+    app.kubernetes.io/gateway: infra-wide-ep-inference-gateway
+    app.kubernetes.io/component: inference-gateway
+  annotations:
+spec:
+  kube:
+    envoyContainer:
+      securityContext:
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      bootstrap:
+        componentLogLevels:
+          upstream: info
+          http: info
+          connection: info
+        logLevel: info # keep as info for everything else, the other debug levels will be sufficient if more logging needed
+      resources: 
+        limits:
+          cpu: "2"
+          memory: 1Gi
+        requests:
+          cpu: 100m
+          memory: 128Mi
+    service:
+      type: "LoadBalancer"
+      extraLabels:
+        gateway: custom
+    podTemplate:
+      extraLabels:
+        gateway: custom
+    floatingUserId: true
+    sdsContainer:
+      securityContext:
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        seccompProfile:
+          type: RuntimeDefault

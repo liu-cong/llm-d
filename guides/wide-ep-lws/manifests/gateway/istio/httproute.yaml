@@ -1,0 +1,10 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: ms-wide-ep-llm-d-modelservice
+spec:
+  rules:
+      # Configure timeouts so that requests don't time out due to the gateway default timeout.
+      timeouts:
+        backendRequest: 0s
+        request: 0s

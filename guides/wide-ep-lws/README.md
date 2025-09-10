@@ -9,7 +9,7 @@ This guide demonstrates how to deploy DeepSeek-R1-0528 using vLLM's P/D disaggre
 In this example, we will demonstrate a deployment of `DeepSeek-R1-0528` with:
 
 - 1 DP=8 Prefill Workers
-- 2 DP=4 Decode Workers
+- 2 DP=8 Decode Workers
 
 ## Hardware Requirements
 
@@ -28,20 +28,42 @@ Use the helmfile to compose and install the stack. The Namespace in which the st
 ```bash
 export NAMESPACE=llm-d-wide-ep # or any other namespace
 cd guides/wide-ep-lws
-helmfile apply -n ${NAMESPACE}
 ```
 
-**_NOTE:_** You can set the `$RELEASE_NAME_POSTFIX` env variable to change the release names. This is how we support concurrent installs. Ex: `RELEASE_NAME_POSTFIX=wide-ep-2 helmfile apply -n ${NAMESPACE}`
-
-**_NOTE:_** This uses Istio as the default provider, see [Gateway Options](./README.md#gateway-options) for installing with a specific provider.
-
-### Gateway options
-
-To see specify your gateway choice you can use the `-e <gateway option>` flag, ex:
+### Deploy Model Servers
+We support GKE and OpenShift out of the box. You can customize the manifests if you run on other Kubernetes providers.
 
 ```bash
-helmfile apply -e kgateway -n ${NAMESPACe}
+# Deploy on GKE
+kubectl apply -k ./manifests/modelserver/gke -n ${NAMESPACE}
+
+# OR, deploy on Openshift
+kubectl apply -k ./manifests/modelserver/openshift  -n ${NAMESPACE}
 ```
+
+### Deploy InferencePool
+
+```bash
+helm install deepseek-r1 \
+-n ${NAMESPACE} \
+  -f inferenpool.values.yaml \
+  oci://us-central1-docker.pkg.dev/k8s-staging-images/gateway-api-inference-extension/charts/inferencepool --version v0.5.1 # TODO: Upgrade to v1.0 version.
+```
+
+### Deploy Gateway and HTTPRoute
+
+```bash
+# Deploy a gke-l7-regional-external-managed gateway.
+kubectl apply -k ./manifests/gateway/gke-l7-regional-external-managed -n ${NAMESPACE}
+
+# Deploy an Istio gateway.
+kubectl apply -k ./manifests/gateway/istio -n ${NAMESPACE}
+
+# Deploy a kgateway gateway.
+kubectl apply -k ./manifests/gateway/kgateway -n ${NAMESPACE}
+```
+
+### Gateway options
 
 To see what gateway options are supported refer to our [gateway provider prereq doc](../prereq/gateway-provider/README.md#supported-providers). Gateway configurations per provider are tracked in the [gateway-configurations directory](../prereq/gateway-provider/common-configurations/).
 
@@ -106,16 +128,10 @@ To remove the deployment:
 
 ```bash
 # From examples/wide-ep-lws
-helmfile destroy -n ${NAMESPACE}
-
-# Or uninstall them manually
-helm uninstall ms-wide-ep -n ${NAMESPACE}
-helm uninstall infra-wide-ep -n ${NAMESPACE}
+helm uninstall deepseek-r1 -n ${NAMESPACE}
+kubectl delete -k ./manifests/modelserver/<gke|openshift> -n ${NAMESPACE}
+kubectl delete -k ./manifests/gateway/<gke-l7-regional-external-managed|istio|kgateway> -n ${NAMESPACE}
 ```
-
-**_NOTE:_** If you set the `$RELEASE_NAME_POSTFIX` environment variable, your release names will be different from the command above: `infra-$RELEASE_NAME_POSTFIX`, `gaie-$RELEASE_NAME_POSTFIX` and `ms-$RELEASE_NAME_POSTFIX`.
-
-**_NOTE:_** You do not need to specify your `environment` with the `-e <environment>` flag to `helmfile` for removing a installation of the guide, even if you use a non-default option.
 
 ## Customization
 
