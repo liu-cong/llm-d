@@ -57,7 +57,7 @@ spec:
               sizeLimit: 100Gi
           
         containers:
-        - name: vllm-worker-decode
+        - name: vllm-worker
           image: ghcr.io/llm-d/llm-d:v0.2.0
           securityContext:
             capabilities:

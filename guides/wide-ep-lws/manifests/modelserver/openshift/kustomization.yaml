@@ -2,6 +2,13 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
   - ../base
-
-patchesStrategicMerge:
-  - decode-rdma-patch.yaml
+patches:
+  - target:
+      kind: LeaderWorkerSet
+    patch: |-
+      - op: add
+        path: /spec/leaderWorkerTemplate/workerTemplate/spec/containers/0/resources/limits/rdma~1ib
+        value: "1"
+      - op: add
+        path: /spec/leaderWorkerTemplate/workerTemplate/spec/containers/0/resources/requests/rdma~1ib
+        value: "1"
