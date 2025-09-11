@@ -7,7 +7,6 @@ spec:
     - port: 80
       protocol: HTTP
       name: default
-      path: /
       allowedRoutes:
         namespaces:
           from: All

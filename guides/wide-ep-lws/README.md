@@ -45,9 +45,9 @@ kubectl apply -k ./manifests/modelserver/openshift  -n ${NAMESPACE}
 
 ```bash
 helm install deepseek-r1 \
--n ${NAMESPACE} \
+  -n ${NAMESPACE} \
   -f inferencepool.values.yaml \
-  oci://us-central1-docker.pkg.dev/k8s-staging-images/gateway-api-inference-extension/charts/inferencepool --version v0.5.1 # TODO: Upgrade to v1.0 version.
+  oci://us-central1-docker.pkg.dev/k8s-staging-images/gateway-api-inference-extension/charts/inferencepool --version v0 # TODO: Upgrade to v1.0 version.
 ```
 
 ### Deploy Gateway and HTTPRoute
@@ -71,45 +71,44 @@ You can also customize your gateway, for more information on how to do that see 
 
 ## Verifying the installation
 
-- Firstly, you should be able to list all helm releases to view both of the 2 charts got installed into your chosen namespace:
+- Firstly, you should be able to list all helm releases installed into your chosen namespace:
 
 ```bash
 helm list -n ${NAMESPACE}
 NAME            NAMESPACE       REVISION    UPDATED                                 STATUS      CHART                       APP VERSION
-infra-wide-ep   llm-d-wide-ep   1           2025-08-24 13:14:53.355639 -0700 PDT    deployed    llm-d-infra-v1.3.0          v0.3.0
-ms-wide-ep      llm-d-wide-ep   1           2025-08-24 13:14:57.614439 -0700 PDT    deployed    llm-d-modelservice-v0.2.7   v0.2.0
+deepseek-r1     llm-d-wide-ep   1           2025-08-24 13:14:53.355639 -0700 PDT    deployed    inferencepool-v1.0          v0.3.0
 ```
 
-- Out of the box with this example you should have the following resources:
+- Out of the box with this example you should have the following resources (if using Istio):
 
 ```bash
 kubectl get all -n ${NAMESPACE}
 NAME                                                         READY   STATUS    RESTARTS   AGE
 pod/infra-wide-ep-inference-gateway-istio-74d5c66c86-h5mfn   1/1     Running   0          2m22s
-pod/ms-wide-ep-llm-d-modelservice-decode-0                   2/2     Running   0          2m13s
-pod/ms-wide-ep-llm-d-modelservice-decode-0-1                 2/2     Running   0          2m13s
-pod/ms-wide-ep-llm-d-modelservice-epp-55bb9857cf-4pj6r       1/1     Running   0          2m14s
-pod/ms-wide-ep-llm-d-modelservice-prefill-0                  1/1     Running   0          2m13s
+pod/wide-ep-llm-d-decode-0                   2/2     Running   0          2m13s
+pod/wide-ep-llm-d-decode-0-1                 2/2     Running   0          2m13s
+pod/deepseek-r1-epp-84dd98f75b-r6lvh         1/1     Running   0          2m14s
+pod/wide-ep-llm-d-prefill-0                  1/1     Running   0          2m13s
 
 NAME                                            TYPE           CLUSTER-IP    EXTERNAL-IP   PORT(S)                        AGE
 service/infra-wide-ep-inference-gateway-istio   LoadBalancer   10.16.1.34    10.16.4.2     15021:30312/TCP,80:33662/TCP   2m22s
-service/ms-wide-ep-ip-1e480070                  ClusterIP      None          <none>        54321/TCP                      2d4h
-service/ms-wide-ep-llm-d-modelservice-decode    ClusterIP      None          <none>        <none>                         2m13s
-service/ms-wide-ep-llm-d-modelservice-epp       ClusterIP      10.16.1.137   <none>        9002/TCP                       2d4h
-service/ms-wide-ep-llm-d-modelservice-prefill   ClusterIP      None          <none>        <none>                         2m13s
+service/wide-ep-ip-1e480070                  ClusterIP      None          <none>        54321/TCP                      2d4h
+service/wide-ep-llm-d-decode    ClusterIP      None          <none>        <none>                         2m13s
+service/deepseek-r1-epp         ClusterIP      10.16.1.137   <none>        9002/TCP                       2d4h
+service/wide-ep-llm-d-prefill   ClusterIP      None          <none>        <none>                         2m13s
 
 NAME                                                    READY   UP-TO-DATE   AVAILABLE   AGE
 deployment.apps/infra-wide-ep-inference-gateway-istio   1/1     1            1           2m22s
-deployment.apps/ms-wide-ep-llm-d-modelservice-epp       1/1     1            1           2m14s
+deployment.apps/deepseek-r1-epp       1/1     1            1           2m14s
 
 NAME                                                               DESIRED   CURRENT   READY   AGE
 replicaset.apps/infra-wide-ep-inference-gateway-istio-74d5c66c86   1         1         1       2m22s
-replicaset.apps/ms-wide-ep-llm-d-modelservice-epp-55bb9857cf       1         1         1       2m14s
+replicaset.apps/deepseek-r1-epp-55bb9857cf       1         1         1       2m14s
 
 NAME                                                      READY   AGE
-statefulset.apps/ms-wide-ep-llm-d-modelservice-decode     1/1     2m13s
-statefulset.apps/ms-wide-ep-llm-d-modelservice-decode-0   1/1     2m13s
-statefulset.apps/ms-wide-ep-llm-d-modelservice-prefill    1/1     2m13s
+statefulset.apps/wide-ep-llm-d-decode     1/1     2m13s
+statefulset.apps/wide-ep-llm-d-decode-0   1/1     2m13s
+statefulset.apps/wide-ep-llm-d-prefill    1/1     2m13s
 ```
 
 **_NOTE:_** This assumes no other guide deployments in your given `${NAMESPACE}` and you have not changed the default release names via the `${RELEASE_NAME}` environment variable.

@@ -1,7 +1,7 @@
 apiVersion: leaderworkerset.x-k8s.io/v1
 kind: LeaderWorkerSet
 metadata:
-  name: ms-wide-ep-llm-d-modelservice-prefill
+  name: wide-ep-llm-d-prefill
   labels:
     llm-d.ai/inferenceServing: "true"
     llm-d.ai/model: DeepSeek-R1-0528
