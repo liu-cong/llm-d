@@ -159,13 +159,11 @@ spec:
               ephemeral-storage: 64Gi
               memory: 512Gi
               nvidia.com/gpu: "8"
-              rdma/ib: 1
             requests:
               cpu: 32
               ephemeral-storage: 64Gi
               memory: 512Gi
               nvidia.com/gpu: "8"
-              rdma/ib: 1
           
           volumeMounts:
             - mountPath: /dev/shm
