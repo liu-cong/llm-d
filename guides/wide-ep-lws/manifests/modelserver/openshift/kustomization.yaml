@@ -12,3 +12,14 @@ patches:
       - op: add
         path: /spec/leaderWorkerTemplate/workerTemplate/spec/containers/0/resources/requests/rdma~1ib
         value: "1"
+      - op: add
+        path: /spec/leaderWorkerTemplate/workerTemplate/spec/affinity
+        value:
+          nodeAffinity:
+            requiredDuringSchedulingIgnoredDuringExecution:
+              nodeSelectorTerms:
+                - matchExpressions:
+                  - key: gpu.nvidia.com/model
+                    operator: In
+                    values:
+                      - H200

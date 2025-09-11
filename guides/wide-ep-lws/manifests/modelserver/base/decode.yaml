@@ -34,15 +34,6 @@ spec:
             securityContext:
               allowPrivilegeEscalation: false
               runAsNonRoot: true
-        affinity:
-          nodeAffinity:
-            requiredDuringSchedulingIgnoredDuringExecution:
-              nodeSelectorTerms:
-                - matchExpressions:
-                  - key: gpu.nvidia.com/model
-                    operator: In
-                    values:
-                      - H200
         volumes:
           - emptyDir:
               medium: Memory

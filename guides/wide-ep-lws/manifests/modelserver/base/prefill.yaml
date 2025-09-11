@@ -17,15 +17,6 @@ spec:
           llm-d.ai/model: DeepSeek-R1-0528
           llm-d.ai/role: prefill
       spec:
-        affinity:
-          nodeAffinity:
-            requiredDuringSchedulingIgnoredDuringExecution:
-              nodeSelectorTerms:
-                - matchExpressions:
-                  - key: gpu.nvidia.com/model
-                    operator: In
-                    values:
-                      - H200
         volumes:
           - emptyDir:
               medium: Memory
