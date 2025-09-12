@@ -33,6 +33,7 @@ spec:
               - SYS_RAWIO
             runAsGroup: 0
             runAsUser: 0
+            privileged: true
           imagePullPolicy: Always
           command:
             - /bin/bash
@@ -77,6 +78,8 @@ spec:
                 --gpu-memory-utilization 0.75
 
           env:
+          - name: VLLM_ATTENTION_BACKEND
+            value: "FLASHMLA"
           - name: DP_SIZE_LOCAL
             value: "8"
           - name: TP_SIZE
