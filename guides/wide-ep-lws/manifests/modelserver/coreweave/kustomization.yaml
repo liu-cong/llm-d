@@ -6,6 +6,7 @@ patches:
   - target:
       kind: LeaderWorkerSet
     patch: |-
+      # We add the volume for different providers since the hostPath can be different.
       - op: add
         path: /spec/leaderWorkerTemplate/workerTemplate/spec/volumes/-
         value: 

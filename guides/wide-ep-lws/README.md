@@ -30,14 +30,15 @@ export NAMESPACE=llm-d-wide-ep # or any other namespace
 ```
 
 ### Deploy Model Servers
-We support GKE and OpenShift out of the box. You can customize the manifests if you run on other Kubernetes providers.
+
+GKE and CoreWeave are tested Kubernetes providers for this well-lit path. You can customize the manifests if you run on other Kubernetes providers.
 
 ```bash
 # Deploy on GKE
 kubectl apply -k ./manifests/modelserver/gke -n ${NAMESPACE}
 
-# OR, deploy on Openshift
-kubectl apply -k ./manifests/modelserver/openshift  -n ${NAMESPACE}
+# OR, deploy on CoreWeave
+kubectl apply -k ./manifests/modelserver/coreweave  -n ${NAMESPACE}
 ```
 
 ### Deploy InferencePool
@@ -135,7 +136,7 @@ To remove the deployment:
 ```bash
 # From examples/wide-ep-lws
 helm uninstall deepseek-r1 -n ${NAMESPACE}
-kubectl delete -k ./manifests/modelserver/<gke|openshift> -n ${NAMESPACE}
+kubectl delete -k ./manifests/modelserver/<gke|coreweave> -n ${NAMESPACE}
 kubectl delete -k ./manifests/gateway/<gke-l7-regional-external-managed|istio|kgateway> -n ${NAMESPACE}
 ```
 
