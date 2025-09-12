@@ -27,7 +27,6 @@ Use the helmfile to compose and install the stack. The Namespace in which the st
 
 ```bash
 export NAMESPACE=llm-d-wide-ep # or any other namespace
-cd guides/wide-ep-lws
 ```
 
 ### Deploy Model Servers
@@ -44,6 +43,14 @@ kubectl apply -k ./manifests/modelserver/openshift  -n ${NAMESPACE}
 ### Deploy InferencePool
 
 ```bash
+# For GKE
+helm install deepseek-r1 \
+  -n ${NAMESPACE} \
+  -f inferencepool.values.yaml \
+  --set provider.name=gke \
+  oci://us-central1-docker.pkg.dev/k8s-staging-images/gateway-api-inference-extension/charts/inferencepool --version v0 # TODO: Upgrade to v1.0 version.
+
+# For non-GKE
 helm install deepseek-r1 \
   -n ${NAMESPACE} \
   -f inferencepool.values.yaml \

@@ -39,13 +39,6 @@ spec:
               medium: Memory
               sizeLimit: 1Gi
             name: dshm
-          - hostPath:
-              path: /mnt/local/hf-cache
-              type: DirectoryOrCreate
-            name: hf-cache
-          - name: model-storage
-            emptyDir:
-              sizeLimit: 100Gi
           
         containers:
         - name: vllm-worker
@@ -102,8 +95,9 @@ spec:
             value: "1"
           - name: VLLM_ALL2ALL_BACKEND
             value: deepep_low_latency
+            # Currently disabled as we don't mount /dev/gdrdrv into the container
           - name: NVIDIA_GDRCOPY
-            value: enabled
+            value: disabled
           - name: NVSHMEM_DEBUG
             value: INFO
           - name: NVSHMEM_REMOTE_TRANSPORT
@@ -126,16 +120,8 @@ spec:
             valueFrom:
               fieldRef:
                 fieldPath: status.podIP
-          - name: DP_SIZE
-            value: "2"
           - name: TP_SIZE
             value: "1"
-          
-          - name: HF_TOKEN
-            valueFrom:
-              secretKeyRef:
-                name: llm-d-hf-token
-                key: HF_TOKEN
           ports:
           - containerPort: 8200
             name: metrics

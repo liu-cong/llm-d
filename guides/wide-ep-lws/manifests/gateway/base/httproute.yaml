@@ -1,17 +1,17 @@
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
-  name: ms-wide-ep-llm-d
+  name: llm-route
 spec:
   parentRefs:
   - group: gateway.networking.k8s.io
     kind: Gateway
-    name: infra-wide-ep-inference-gateway
+    name: wide-ep-inference-gateway
   rules:
     - backendRefs:
       - group: inference.networking.x-k8s.io
         kind: InferencePool
-        name: ms-wide-ep
+        name: deepseek-r1
         port: 8000
         weight: 1
       matches:

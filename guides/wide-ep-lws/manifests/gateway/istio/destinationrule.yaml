@@ -1,7 +1,7 @@
 apiVersion: networking.istio.io/v1beta1
 kind: DestinationRule
 metadata:
-  name: infra-wide-ep-inference-gateway
+  name: wide-ep-inference-gateway
 spec:
   host: deepseek-r1-epp
   trafficPolicy:

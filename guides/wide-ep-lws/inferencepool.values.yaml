@@ -3,8 +3,18 @@ inferenceExtension:
   image:
     name: llm-d-inference-scheduler
     hub: ghcr.io/llm-d
-    tag: v0.2.1
+    tag: v0.3.0-rc.1
   extProcPort: 9002
+  monitoring:
+    interval: "10s"
+    # Service account token secret for authentication
+    secret:
+      name: inference-gateway-sa-metrics-reader-secret
+    # Prometheus ServiceMonitor will be created when enabled for EPP metrics collection
+    prometheus:
+      enabled: false
+    gke:
+      enable: false
   pluginsConfigFile: "custom-plugins.yaml"
   pluginsCustomConfig:
     custom-plugins.yaml: |
@@ -17,7 +27,7 @@ inferenceExtension:
       - type: decode-filter
       - type: max-score-picker
       - type: queue-scorer
-      - type: kv-cache-scorer
+      - type: kv-cache-utilization-scorer
       - type: prefix-cache-scorer
         parameters:
           hashBlockSize: 64
@@ -43,7 +53,7 @@ inferenceExtension:
           weight: 1
         - pluginRef: prefix-cache-scorer
           weight: 1
-        - pluginRef: kv-cache-scorer
+        - pluginRef: kv-cache-utilization-scorer
           weight: 1
         - pluginRef: max-score-picker
 inferencePool:

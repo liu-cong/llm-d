@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: infra-wide-ep-inference-gateway
+  name: wide-ep-inference-gateway
 data:
   deployment: |
     spec:

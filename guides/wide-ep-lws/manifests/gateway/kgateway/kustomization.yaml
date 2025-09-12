@@ -16,6 +16,6 @@ patches:
         request: 0s
 labels:
 - pairs:
-    app.kubernetes.io/instance: infra-wide-ep
-    app.kubernetes.io/gateway: infra-wide-ep-inference-gateway
+    app.kubernetes.io/instance: wide-ep
+    app.kubernetes.io/gateway: wide-ep-inference-gateway
     app.kubernetes.io/component: inference-gateway

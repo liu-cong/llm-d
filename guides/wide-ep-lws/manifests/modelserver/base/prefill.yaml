@@ -22,10 +22,6 @@ spec:
               medium: Memory
               sizeLimit: 1Gi
             name: dshm
-          - hostPath:
-              path: /mnt/local/hf-cache
-              type: DirectoryOrCreate
-            name: hf-cache
           - name: model-storage
             emptyDir:
               sizeLimit: 100Gi
@@ -107,16 +103,8 @@ spec:
             valueFrom:
               fieldRef:
                 fieldPath: status.podIP
-          - name: DP_SIZE
-            value: "1"
           - name: TP_SIZE
             value: "1"
-          
-          - name: HF_TOKEN
-            valueFrom:
-              secretKeyRef:
-                name: llm-d-hf-token
-                key: HF_TOKEN
           ports:
           - containerPort: 8000
             name: metrics

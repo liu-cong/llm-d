@@ -7,3 +7,8 @@ patches:
 - path: gateway.yaml
   target:
     kind: Gateway
+labels:
+- pairs:
+    app.kubernetes.io/instance: wide-ep
+    app.kubernetes.io/gateway: wide-ep-inference-gateway
+    app.kubernetes.io/component: inference-gateway
