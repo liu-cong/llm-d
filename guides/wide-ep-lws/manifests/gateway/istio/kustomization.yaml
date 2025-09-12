@@ -3,7 +3,6 @@ kind: Kustomization
 resources:
   - ../base
   - destinationrule.yaml
-  - configmap.yaml
 patches:
 - path: gateway.yaml
   target:
