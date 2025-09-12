@@ -14,6 +14,11 @@ spec:
         name: deepseek-r1
         port: 8000
         weight: 1
+      # Inference requests can take a very long time to finish.
+      # Explicitly setting to 0s to disable timeout on the HTTPRoute.
+      timeouts:
+        backendRequest: 0s
+        request: 0s
       matches:
       - path:
           type: PathPrefix
