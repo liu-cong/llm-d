@@ -37,7 +37,7 @@ spec:
         volumes:
           - emptyDir:
               medium: Memory
-              sizeLimit: 1Gi
+              sizeLimit: 2Gi # 2Gi for NCCL 2.27 to be safe
             name: dshm
           
         containers:
