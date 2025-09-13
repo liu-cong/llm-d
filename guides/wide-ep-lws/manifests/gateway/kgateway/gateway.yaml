@@ -4,8 +4,3 @@ metadata:
   name: wide-ep-inference-gateway
 spec:
   gatewayClassName: "kgateway"
-  infrastructure:
-    parametersRef:
-      name: wide-ep-inference-gateway
-      group: gateway.kgateway.dev
-      kind: GatewayParameters
