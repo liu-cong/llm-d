@@ -18,7 +18,7 @@ This guide requires 24 Nvidia H200 GPUs and InfiniBand RDMA. It requires 1024 Gi
 ## Prerequisites
 
 - Have the [proper client tools installed on your local system](../prereq/client-setup/README.md) to use this guide.
-- Configure and deploy your [Gateway control plane](../prereq/gateway-provider/README.md).
+- Configure and deploy your [Gateway control plane](../prereq/gateway-provider/README.md). NOTE the required `GATEWAY_API_INFERENCE_EXTENSION_CRD_REVISION` version is `v1.0.0`.
 - [Create the `llm-d-hf-token` secret in your target namespace with the key `HF_TOKEN` matching a valid HuggingFace token](../prereq/client-setup/README.md#huggingface-token) to pull models.
 
 ## Installation
@@ -27,6 +27,7 @@ Use the helmfile to compose and install the stack. The Namespace in which the st
 
 ```bash
 export NAMESPACE=llm-d-wide-ep # or any other namespace
+kubectl create namespace ${NAMESPACE}
 ```
 
 ### Deploy Model Servers
