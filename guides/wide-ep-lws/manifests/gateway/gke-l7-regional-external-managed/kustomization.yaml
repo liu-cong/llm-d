@@ -7,6 +7,11 @@ patches:
 - path: gateway.yaml
   target:
     kind: Gateway
+- target:
+    kind: HTTPRoute
+  patch: |-
+    - op: remove
+      path: /spec/rules/0/timeouts
 labels:
 - pairs:
     app.kubernetes.io/instance: wide-ep
