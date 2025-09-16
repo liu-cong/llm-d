@@ -18,7 +18,7 @@ This guide requires 24 Nvidia H200 GPUs and InfiniBand RDMA. It requires 1024 Gi
 ## Prerequisites
 
 - Have the [proper client tools installed on your local system](../prereq/client-setup/README.md) to use this guide.
-- Configure and deploy your [Gateway control plane](../prereq/gateway-provider/README.md). NOTE the required `GATEWAY_API_INFERENCE_EXTENSION_CRD_REVISION` version is `v1.0.0`.
+- Configure and deploy your [Gateway control plane](../prereq/gateway-provider/README.md). NOTE the required `GATEWAY_API_INFERENCE_EXTENSION_CRD_REVISION` version is `v1.0.0` (which contains the `InferenceObjective` CRD required by the inference scheduler).
 - [Create the `llm-d-hf-token` secret in your target namespace with the key `HF_TOKEN` matching a valid HuggingFace token](../prereq/client-setup/README.md#huggingface-token) to pull models.
 
 ## Installation
@@ -50,13 +50,13 @@ helm install deepseek-r1 \
   -n ${NAMESPACE} \
   -f inferencepool.values.yaml \
   --set provider.name=gke \
-  oci://us-central1-docker.pkg.dev/k8s-staging-images/gateway-api-inference-extension/charts/inferencepool --version v0 # TODO: Upgrade to v1.0 version.
+  oci://us-central1-docker.pkg.dev/k8s-staging-images/gateway-api-inference-extension/charts/inferencepool --version v1.0.0
 
 # For non-GKE
 helm install deepseek-r1 \
   -n ${NAMESPACE} \
   -f inferencepool.values.yaml \
-  oci://us-central1-docker.pkg.dev/k8s-staging-images/gateway-api-inference-extension/charts/inferencepool --version v0 # TODO: Upgrade to v1.0 version.
+  oci://us-central1-docker.pkg.dev/k8s-staging-images/gateway-api-inference-extension/charts/inferencepool --version v1.0.0
 ```
 
 ### Deploy Gateway and HTTPRoute
