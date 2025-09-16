@@ -70,6 +70,9 @@ kubectl apply -k ./manifests/gateway/istio -n ${NAMESPACE}
 
 # Deploy a kgateway gateway.
 kubectl apply -k ./manifests/gateway/kgateway -n ${NAMESPACE}
+
+# Deploy a kgateway gateway on Openshift Container Platform (OCP).
+kubectl apply -k ./manifests/gateway/kgateway-openshift -n ${NAMESPACE}
 ```
 
 ### Gateway options
@@ -138,7 +141,7 @@ To remove the deployment:
 # From examples/wide-ep-lws
 helm uninstall deepseek-r1 -n ${NAMESPACE}
 kubectl delete -k ./manifests/modelserver/<gke|coreweave> -n ${NAMESPACE}
-kubectl delete -k ./manifests/gateway/<gke-l7-regional-external-managed|istio|kgateway> -n ${NAMESPACE}
+kubectl delete -k ./manifests/gateway/<gke-l7-regional-external-managed|istio|kgateway|kgateway-openshift> -n ${NAMESPACE}
 ```
 
 ## Customization

@@ -9,6 +9,8 @@ patches:
     kind: Gateway
 - target:
     kind: HTTPRoute
+  # Remove timeouts since GKE gateway doesn't support it.
+  # Use GCPBackendPolicy to configure timeouts on GKE.
   patch: |-
     - op: remove
       path: /spec/rules/0/timeouts
