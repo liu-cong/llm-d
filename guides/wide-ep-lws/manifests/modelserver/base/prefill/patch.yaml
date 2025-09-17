@@ -1,0 +1,51 @@
+- op: add
+  path: /metadata/labels/llm-d.ai~1role
+  value: prefill
+- op: add
+  path: /spec/leaderWorkerTemplate/workerTemplate/metadata/labels/llm-d.ai~1role
+  value: prefill
+- op: add
+  path: /spec/leaderWorkerTemplate/size
+  value: 1
+- op: add
+  path: /spec/leaderWorkerTemplate/workerTemplate/spec/containers/0/args
+  value:
+    - |-
+      #################
+      # RUN vLLM prefill worker
+      #################
+      START_RANK=$(( ${LWS_WORKER_INDEX:-0} * DP_SIZE_LOCAL ))
+
+      source /opt/vllm/bin/activate
+      exec vllm serve \
+        deepseek-ai/DeepSeek-R1-0528 \
+        --port 8000 \
+        --disable-log-requests \
+        --disable-uvicorn-access-log \
+        --enable-expert-parallel \
+        --data-parallel-hybrid-lb \
+        --tensor-parallel-size $TP_SIZE \
+        --data-parallel-size $((LWS_GROUP_SIZE * DP_SIZE_LOCAL)) \
+        --data-parallel-size-local $DP_SIZE_LOCAL \
+        --data-parallel-address ${LWS_LEADER_ADDRESS} \
+        --data-parallel-rpc-port 5555 \
+        --data-parallel-start-rank $START_RANK \
+        --trust-remote-code \
+        --kv_transfer_config '{"kv_connector":"NixlConnector","kv_role":"kv_both"}'
+- op: add
+  path: /spec/leaderWorkerTemplate/workerTemplate/spec/containers/0/env/-
+  value:
+    name: VLLM_ALL2ALL_BACKEND
+    value: deepep_high_throughput
+- op: add
+  path: /spec/leaderWorkerTemplate/workerTemplate/spec/containers/0/ports
+  value:
+    - containerPort: 8000
+      name: metrics
+      protocol: TCP
+- op: add
+  path: /spec/leaderWorkerTemplate/workerTemplate/spec/containers/0/readinessProbe
+  value:
+    httpGet:
+      path: /health
+      port: 8000
