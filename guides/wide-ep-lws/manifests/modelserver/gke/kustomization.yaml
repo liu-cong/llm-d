@@ -3,106 +3,40 @@ kind: Kustomization
 resources:
   - ../base
 patches:
-  # Prefill launch
-  - target:
-      kind: LeaderWorkerSet
-      name: wide-ep-llm-d-prefill
-    patch: |-
-      # Replace command and args
-      - op: replace
-        path: /spec/leaderWorkerTemplate/workerTemplate/spec/containers/0/args
-        value:
-          - |
-            if command -v apt-get >/dev/null 2>&1; then
-              export VLLM_HOME=/app/venv
-            else
-              # Assume we're using the RH midstream image
-              export VLLM_HOME=/opt/vllm
-              export HF_HUB_OFFLINE=0
-            fi
-
-            # Configure gIB
-            export PATH=/usr/local/nvidia/bin:${PATH}:/usr/local/gib/bin
-            source /usr/local/gib/scripts/set_nccl_env.sh
-            unset NCCL_NET
-            export NCCL_NET_PLUGIN=/usr/local/gib/lib64/libnccl-net_internal.so
-            export START_RANK=$(( ${LWS_WORKER_INDEX:-0} * DP_SIZE_LOCAL ))
-
-            #################
-            # Prefill launch
-            #################
-            ${VLLM_HOME}/bin/vllm serve \
-            deepseek-ai/DeepSeek-R1 \
-            --port 8000 \
-            --enable-log-requests \
-            --enable-expert-parallel \
-            --data-parallel-hybrid-lb \
-            --tensor-parallel-size 1 \
-            --data-parallel-size $((LWS_GROUP_SIZE * DP_SIZE_LOCAL)) \
-            --data-parallel-size-local $DP_SIZE_LOCAL \
-            --data-parallel-address ${LWS_LEADER_ADDRESS} \
-            --data-parallel-rpc-port 5555 \
-            --data-parallel-start-rank ${START_RANK} \
-            --trust-remote-code \
-            --kv_transfer_config '{"kv_connector":"NixlConnector","kv_role":"kv_both"}'
-  # decode launch
-  - target:
-      kind: LeaderWorkerSet
-      name: wide-ep-llm-d-decode
-    patch: |-
-      # Replace command and args
-      - op: replace
-        path: /spec/leaderWorkerTemplate/workerTemplate/spec/containers/0/args
-        value:
-          - |
-            if command -v apt-get >/dev/null 2>&1; then
-              export VLLM_HOME=/app/venv
-            else
-              # Assume we're using the RH midstream image
-              export VLLM_HOME=/opt/vllm
-              export HF_HUB_OFFLINE=0
-            fi
-
-            # Configure gIB
-            export PATH=/usr/local/nvidia/bin:${PATH}:/usr/local/gib/bin
-            source /usr/local/gib/scripts/set_nccl_env.sh
-            unset NCCL_NET
-            export NCCL_NET_PLUGIN=/usr/local/gib/lib64/libnccl-net_internal.so
-            export START_RANK=$(( ${LWS_WORKER_INDEX:-0} * DP_SIZE_LOCAL ))
-
-            #################
-            # Decode launch
-            #################
-            ${VLLM_HOME}/bin/vllm serve \
-            deepseek-ai/DeepSeek-R1 \
-            --port 8200 \
-            --enable-log-requests \
-            --enable-expert-parallel \
-            --data-parallel-hybrid-lb \
-            --tensor-parallel-size 1 \
-            --data-parallel-size $((LWS_GROUP_SIZE * DP_SIZE_LOCAL)) \
-            --data-parallel-size-local $DP_SIZE_LOCAL \
-            --data-parallel-address ${LWS_LEADER_ADDRESS} \
-            --data-parallel-rpc-port 5555 \
-            --data-parallel-start-rank ${START_RANK} \
-            --trust-remote-code \
-            --kv_transfer_config '{"kv_connector":"NixlConnector","kv_role":"kv_both"}'
   # Common configurations for prefill and decode.
   - target:
       kind: LeaderWorkerSet
     patch: |-
-      # Add GKE specific node affinity to match H200 GPUs.
+      # Enable privileged container  on GKE to perform GPU initiated RDMA.
+      # See https://github.com/llm-d/llm-d/tree/main/docs/infra-providers/gke#configuring-support-for-rdma-on-gke-workload-pods.
+      - op: add
+        path: /spec/leaderWorkerTemplate/workerTemplate/spec/containers/0/securityContext/privileged
+        value: true
+      # Add GKE specific topology affinity.
+      # https://github.com/llm-d/llm-d/tree/main/docs/infra-providers/gke#configuring-support-for-rdma-on-gke-workload-pods
       - op: add
         path: /spec/leaderWorkerTemplate/workerTemplate/spec/affinity
         value:
-          nodeAffinity:
-            requiredDuringSchedulingIgnoredDuringExecution:
-              nodeSelectorTerms:
-                - matchExpressions:
-                    - key: cloud.google.com/gke-accelerator
-                      operator: In
-                      values:
-                        - nvidia-h200-141gb
+          podAffinity:
+            # Subblock affinity cannot guarantee all pods in the replica
+            # are in the same subblock, but is better than random spreading
+            preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 2
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app: vllm-deepseek-ep
+                matchLabelKeys:
+                - component
+                topologyKey: cloud.google.com/gce-topology-block
+            - weight: 1
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app: vllm-deepseek-ep
+                matchLabelKeys:
+                - component
+                topologyKey: cloud.google.com/gce-topology-subblock
       # Add GKE specific RDMA configuration.
       - op: add
         path: /spec/leaderWorkerTemplate/workerTemplate/metadata/annotations
@@ -120,103 +54,7 @@ patches:
               {"interfaceName":"eth8","network":"rdma-6"},
               {"interfaceName":"eth9","network":"rdma-7"}
             ]
-      - op: add
-        path: /spec/leaderWorkerTemplate/workerTemplate/spec/containers/0/resources/limits/networking.gke.io.networks~1rdma-0
-        value: "1"
-      - op: add
-        path: /spec/leaderWorkerTemplate/workerTemplate/spec/containers/0/resources/limits/networking.gke.io.networks~1rdma-0.IP
-        value: "1"
-      - op: add
-        path: /spec/leaderWorkerTemplate/workerTemplate/spec/containers/0/resources/limits/networking.gke.io.networks~1rdma-1
-        value: "1"
-      - op: add
-        path: /spec/leaderWorkerTemplate/workerTemplate/spec/containers/0/resources/limits/networking.gke.io.networks~1rdma-1.IP
-        value: "1"
-      - op: add
-        path: /spec/leaderWorkerTemplate/workerTemplate/spec/containers/0/resources/limits/networking.gke.io.networks~1rdma-2
-        value: "1"
-      - op: add
-        path: /spec/leaderWorkerTemplate/workerTemplate/spec/containers/0/resources/limits/networking.gke.io.networks~1rdma-2.IP
-        value: "1"
-      - op: add
-        path: /spec/leaderWorkerTemplate/workerTemplate/spec/containers/0/resources/limits/networking.gke.io.networks~1rdma-3
-        value: "1"
-      - op: add
-        path: /spec/leaderWorkerTemplate/workerTemplate/spec/containers/0/resources/limits/networking.gke.io.networks~1rdma-3.IP
-        value: "1"
-      - op: add
-        path: /spec/leaderWorkerTemplate/workerTemplate/spec/containers/0/resources/limits/networking.gke.io.networks~1rdma-4
-        value: "1"
-      - op: add
-        path: /spec/leaderWorkerTemplate/workerTemplate/spec/containers/0/resources/limits/networking.gke.io.networks~1rdma-4.IP
-        value: "1"
-      - op: add
-        path: /spec/leaderWorkerTemplate/workerTemplate/spec/containers/0/resources/limits/networking.gke.io.networks~1rdma-5
-        value: "1"
-      - op: add
-        path: /spec/leaderWorkerTemplate/workerTemplate/spec/containers/0/resources/limits/networking.gke.io.networks~1rdma-5.IP
-        value: "1"
-      - op: add
-        path: /spec/leaderWorkerTemplate/workerTemplate/spec/containers/0/resources/limits/networking.gke.io.networks~1rdma-6
-        value: "1"
-      - op: add
-        path: /spec/leaderWorkerTemplate/workerTemplate/spec/containers/0/resources/limits/networking.gke.io.networks~1rdma-6.IP
-        value: "1"
-      - op: add
-        path: /spec/leaderWorkerTemplate/workerTemplate/spec/containers/0/resources/limits/networking.gke.io.networks~1rdma-7
-        value: "1"
-      - op: add
-        path: /spec/leaderWorkerTemplate/workerTemplate/spec/containers/0/resources/limits/networking.gke.io.networks~1rdma-7.IP
-        value: "1"
-      - op: add
-        path: /spec/leaderWorkerTemplate/workerTemplate/spec/containers/0/resources/requests/networking.gke.io.networks~1rdma-0
-        value: "1"
-      - op: add
-        path: /spec/leaderWorkerTemplate/workerTemplate/spec/containers/0/resources/requests/networking.gke.io.networks~1rdma-0.IP
-        value: "1"
-      - op: add
-        path: /spec/leaderWorkerTemplate/workerTemplate/spec/containers/0/resources/requests/networking.gke.io.networks~1rdma-1
-        value: "1"
-      - op: add
-        path: /spec/leaderWorkerTemplate/workerTemplate/spec/containers/0/resources/requests/networking.gke.io.networks~1rdma-1.IP
-        value: "1"
-      - op: add
-        path: /spec/leaderWorkerTemplate/workerTemplate/spec/containers/0/resources/requests/networking.gke.io.networks~1rdma-2
-        value: "1"
-      - op: add
-        path: /spec/leaderWorkerTemplate/workerTemplate/spec/containers/0/resources/requests/networking.gke.io.networks~1rdma-2.IP
-        value: "1"
-      - op: add
-        path: /spec/leaderWorkerTemplate/workerTemplate/spec/containers/0/resources/requests/networking.gke.io.networks~1rdma-3
-        value: "1"
-      - op: add
-        path: /spec/leaderWorkerTemplate/workerTemplate/spec/containers/0/resources/requests/networking.gke.io.networks~1rdma-3.IP
-        value: "1"
-      - op: add
-        path: /spec/leaderWorkerTemplate/workerTemplate/spec/containers/0/resources/requests/networking.gke.io.networks~1rdma-4
-        value: "1"
-      - op: add
-        path: /spec/leaderWorkerTemplate/workerTemplate/spec/containers/0/resources/requests/networking.gke.io.networks~1rdma-4.IP
-        value: "1"
-      - op: add
-        path: /spec/leaderWorkerTemplate/workerTemplate/spec/containers/0/resources/requests/networking.gke.io.networks~1rdma-5
-        value: "1"
-      - op: add
-        path: /spec/leaderWorkerTemplate/workerTemplate/spec/containers/0/resources/requests/networking.gke.io.networks~1rdma-5.IP
-        value: "1"
-      - op: add
-        path: /spec/leaderWorkerTemplate/workerTemplate/spec/containers/0/resources/requests/networking.gke.io.networks~1rdma-6
-        value: "1"
-      - op: add
-        path: /spec/leaderWorkerTemplate/workerTemplate/spec/containers/0/resources/requests/networking.gke.io.networks~1rdma-6.IP
-        value: "1"
-      - op: add
-        path: /spec/leaderWorkerTemplate/workerTemplate/spec/containers/0/resources/requests/networking.gke.io.networks~1rdma-7
-        value: "1"
-      - op: add
-        path: /spec/leaderWorkerTemplate/workerTemplate/spec/containers/0/resources/requests/networking.gke.io.networks~1rdma-7.IP
-        value: "1"
-      # Add GKE specific volumes.
+      # Add GKE gib per https://cloud.google.com/ai-hypercomputer/docs/create/gke-ai-hypercompute-custom#configure-pod-manifests-rdma
       - op: add
         path: /spec/leaderWorkerTemplate/workerTemplate/spec/volumes/-
         value:
@@ -229,101 +67,59 @@ patches:
         value:
           mountPath: /usr/local/gib
           name: gib
-      - op: add
-        path: /spec/leaderWorkerTemplate/workerTemplate/spec/volumes/-
-        value: 
-          name: hf-cache
-          hostPath:
-                path: /mnt/stateful_partition/kube-ephemeral-ssd/shared_disk/hfcache/
-                type: DirectoryOrCreate
-      - op: add
-        path: /spec/leaderWorkerTemplate/workerTemplate/spec/volumes/-
-        value:
-          name: nv-compute-cache
-          hostPath:
-            path: /mnt/stateful_partition/kube-ephemeral-ssd/shared_disk/nv-compute-cache
-            type: DirectoryOrCreate
-      - op: add
-        path: /spec/leaderWorkerTemplate/workerTemplate/spec/containers/0/volumeMounts/-
-        value:
-          name: nv-compute-cache
-          mountPath: /root/.nv/ComputeCache
-      - op: add # TODO: delete once we have the official image
-        path: /spec/leaderWorkerTemplate/workerTemplate/spec/volumes/-
-        value:
-          name: vllm
-          emptyDir: {}
-      - op: add
-        path: /spec/leaderWorkerTemplate/workerTemplate/spec/containers/0/volumeMounts/-
-        value:
-          name: vllm
-          mountPath: /code
-      # Replace container image
-      - op: replace # TODO: delete once we have the official image
-        path: /spec/leaderWorkerTemplate/workerTemplate/spec/containers/0/image
-        value: us-central1-docker.pkg.dev/conliu-gke-dev/llm-d/vllm:clayton-v0.10.2
       # Env vars 
-      # TODO these should be added to the base yaml
       - op: add
         path: /spec/leaderWorkerTemplate/workerTemplate/spec/containers/0/env/-
         value:
-          name: VLLM_NIXL_SIDE_CHANNEL_PORT
-          value: "6555"
-      - op: add
-        path: /spec/leaderWorkerTemplate/workerTemplate/spec/containers/0/env/-
-        value:
-          name: VLLM_CACHE_ROOT
-          value: "/root/.nv/ComputeCache/.vllm"
-      - op: add
-        path: /spec/leaderWorkerTemplate/workerTemplate/spec/containers/0/env/-
-        value:
-          name: FLASHINFER_WORKSPACE_BASE
-          value: "/root/.nv/ComputeCache"
-      - op: add
-        path: /spec/leaderWorkerTemplate/workerTemplate/spec/containers/0/env/-
-        value:
-          name: TRITON_CACHE_DIR
-          value: "/root/.nv/ComputeCache/.triton"
-      - op: add
-        path: /spec/leaderWorkerTemplate/workerTemplate/spec/containers/0/env/-
-        value:
-          name: DG_JIT_CACHE_DIR
-          value: "/root/.nv/ComputeCache/.deepgemm"
-      - op: add
-        path: /spec/leaderWorkerTemplate/workerTemplate/spec/containers/0/env/-
-        value:
-          name: TORCH_CUDA_ARCH_LIST
-          value: "9.0a 10.0"
-      # TODO These env vars should be removed from final yaml
-      - op: add
-        path: /spec/leaderWorkerTemplate/workerTemplate/spec/containers/0/env/-
-        value:
-          name: UCX_PROTO_INFO
-          value: "y"
-      - op: add
-        path: /spec/leaderWorkerTemplate/workerTemplate/spec/containers/0/env/-
-        value:
-          name: VLLM_USE_PRECOMPILED
+          # GCP pairs GPU NICs to PCIe bridges (https://cloud.google.com/compute/docs/gpus/gpu-network-bandwidth#h200-gpus),
+          # which can lead to NVSHMEM's automatic distance assignment algorithm selecting NICs
+          # inefficiently. Instead, instruct NVSHMEM to select the NIC that aligns to the
+          # index of the GPU on the node.
+          name: NVSHMEM_ENABLE_NIC_PE_MAPPING
           value: "1"
       - op: add
         path: /spec/leaderWorkerTemplate/workerTemplate/spec/containers/0/env/-
         value:
-          name: UCX_LOG_LEVEL
-          value: "debug"
+          name: NVSHMEM_HCA_LIST
+          value: "mlx5_0:1,mlx5_1:1,mlx5_2:1,mlx5_3:1,mlx5_4:1,mlx5_5:1,mlx5_6:1,mlx5_7:1"
+      # https://cloud.google.com/ai-hypercomputer/docs/create/gke-ai-hypercompute-custom#configure-pod-manifests-rdma
       - op: add
         path: /spec/leaderWorkerTemplate/workerTemplate/spec/containers/0/env/-
         value:
-          name: NVSHMEM_INFO
+          name: LD_LIBRARY_PATH
+          value: "/usr/local/nvidia/lib64"
+      # Source nccl env at startup.
+      # https://cloud.google.com/ai-hypercomputer/docs/create/gke-ai-hypercompute-custom#configure-pod-manifests-rdma
+      - op: add
+        path: /spec/leaderWorkerTemplate/workerTemplate/spec/containers/0/env/-
+        value:
+          name: BASH_ENV
+          value: "/usr/local/gib/scripts/set_nccl_env.sh"
+      # Disable GCP NCCL telemetry due to failures to upload blocking
+      - op: add
+        path: /spec/leaderWorkerTemplate/workerTemplate/spec/containers/0/env/-
+        value:
+          name: NCCL_TELEMETRY_MODE
+          value: "0"
+      # This is recommended on gke.
+      # https://github.com/llm-d/llm-d/tree/main/docs/infra-providers/gke#configuring-support-for-rdma-on-gke-workload-pods
+      - op: add
+        path: /spec/leaderWorkerTemplate/workerTemplate/spec/containers/0/env/-
+        value:
+          name: NVSHMEM_DISABLED_GDRCOPY
           value: "true"
+      # TODO: Remove this once we have the llm-d image working on GKE.
       - op: add
         path: /spec/leaderWorkerTemplate/workerTemplate/spec/containers/0/env/-
         value:
-          name: NVSHMEM_DEBUG_SUBSYS
-          value: "ALL"
-      - op: add
-        path: /spec/leaderWorkerTemplate/workerTemplate/spec/containers/0/env/-
-        value:
-          name: VLLM_TORCH_PROFILER_DIR
-          value: "/code/traces"
-
-
+          name: VENV_PATH
+          value: "/app/venv"
+  # Override the image to be the GKE workaround image.
+  # TODO: Remove this once we have the llm-d image working on GKE.
+  - target:
+      kind: LeaderWorkerSet
+    patch: |-
+      # Replace container image
+      - op: replace
+        path: /spec/leaderWorkerTemplate/workerTemplate/spec/containers/0/image
+        value: ghcr.io/llm-d/llm-d-gke-dev:pr-320@sha256:4e6e2ddfacd469c8e030a8d4ab58357d467cf1e852a9c0c128cf4b74136691a1
