@@ -39,7 +39,7 @@ spec:
           - name: dshm
             emptyDir:
               medium: Memory
-              sizeLimit: 4Gi # 4Gi for NCCL 2.27 to be safe
+              sizeLimit: 3Gi # 3Gi for NCCL 2.27 to be safe
         containers:
         - name: vllm-worker
           image: ghcr.io/llm-d/llm-d-cuda-dev:pr-291@sha256:cc15e6538d654e83ccddea19c665735549bc9fe915b020a2145b5d713bb637cc
@@ -95,7 +95,6 @@ spec:
                                 "num_redundant_experts":"32",
                                 "log_balancedness":"False"}' \
                 --compilation_config '{"cudagraph_mode": "FULL_DECODE_ONLY"}'
-                --gpu-memory-utilization 0.75
           env:
           # VLLM_MOE_DP_CHUNK_SIZE is a tunable parameter.
           # Higher values increase the memory footprint of the hidden states in the MoE layers,
@@ -147,12 +146,12 @@ spec:
               port: 8200
           resources:
             limits:
-              ephemeral-storage: 3Ti
+              ephemeral-storage: 1Ti
               memory: 512Gi
               nvidia.com/gpu: "8"
             requests:
               cpu: 32
-              ephemeral-storage: 3Ti
+              ephemeral-storage: 1Ti
               memory: 512Gi
               nvidia.com/gpu: "8"
           volumeMounts:
