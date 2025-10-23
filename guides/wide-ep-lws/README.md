@@ -16,7 +16,7 @@ In this example, we will demonstrate a deployment of `DeepSeek-R1-0528` with:
 
 ## Hardware Requirements
 
-This guide requires 32 Nvidia H200 GPUs and InfiniBand or RoCE RDMA networking. Check `modelserver/base/decode.yaml` and `modelserver/base/prefill.yaml` for detailed resource requirements.
+This guide requires 32 Nvidia H200 GPUs and InfiniBand or RoCE RDMA networking. Check `manifests/modelserver/base/decode.yaml` and `manifests/modelserver/base/prefill.yaml` for detailed resource requirements.
 
 ## Prerequisites
 
