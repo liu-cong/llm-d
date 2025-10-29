@@ -1,8 +1,8 @@
-# Offloading KV Cache to CPU Memory
+# Offloading Prefix Cache to CPU Memory
 
 ## Overview
 
-This guide provides recipes to offload KV cache to CPU RAM via the vLLM native offloading connector and the LMCache connector.
+This guide provides recipes to offload prefix cache to CPU RAM via the vLLM native offloading connector and the LMCache connector.
 
 ## Prerequisites
 
@@ -14,21 +14,21 @@ This guide provides recipes to offload KV cache to CPU RAM via the vLLM native o
 ### Deploy vLLM
 
 === vLLM Native Offloading [To be added]
-This enables CPU KV cache offloading via the native vLLM OffloadingConnector.
+This enables CPU prefix cache offloading via the native vLLM OffloadingConnector.
 
 ```
 kubectl apply -k ./manifests/vllm/offloading-connector
 ```
 
 === Via LMCache [To be added]
-This enables CPU KV cache offloading via the LMCacheConnector.
+This enables CPU prefix cache offloading via the LMCacheConnector.
 
 ```
 kubectl apply -k ./manifests/vllm/lmcache-connector
 ```
 
 === TPU to CPU Offloading [To be added]
-This enables CPU KV cache offloading for vLLM on TPU.
+This enables CPU prefix cache offloading for vLLM on TPU.
 
 ```
 kubectl apply -k ./manifests/vllm/tpu
