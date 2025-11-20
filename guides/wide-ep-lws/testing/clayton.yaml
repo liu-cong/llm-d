@@ -1,0 +1,481 @@
+apiVersion: leaderworkerset.x-k8s.io/v1
+kind: LeaderWorkerSet
+metadata:
+    name: vllm-deepseek-r1-ep-pd
+spec:
+    replicas: 1
+    leaderWorkerTemplate:
+        size: 2
+        restartPolicy: None #RecreateGroupOnPodRestart
+
+        workerTemplate:
+            metadata:
+              annotations:
+                networking.gke.io/default-interface: 'eth0'
+                networking.gke.io/interfaces: |
+                  [
+                    {"interfaceName":"eth0","network":"default"},
+                    {"interfaceName":"eth2","network":"rdma-0"},
+                    {"interfaceName":"eth3","network":"rdma-1"},
+                    {"interfaceName":"eth4","network":"rdma-2"},
+                    {"interfaceName":"eth5","network":"rdma-3"},
+                    {"interfaceName":"eth6","network":"rdma-4"},
+                    {"interfaceName":"eth7","network":"rdma-5"},
+                    {"interfaceName":"eth8","network":"rdma-6"},
+                    {"interfaceName":"eth9","network":"rdma-7"}
+                  ]
+            spec:
+              containers:
+              - name: vllm-worker
+                image: us-central1-docker.pkg.dev/conliu-gke-dev/llm-d/vllm:clayton-v0.10.2
+                #image: quay.io/tms/llm-d-dev:0.3.0-203cb833c53a87003e42be451653cd9b0b86a098
+                imagePullPolicy: Always
+                workingDir: /code
+                stdin: true
+                tty: true
+                command: ["/bin/bash","-c"]
+                args:
+                  - |
+                    set -euo pipefail
+
+                    if [[ -n "${DROP_KERNEL_CACHE}" ]]; then
+                      find /root/.nv/ComputeCache/ -delete
+                    fi
+
+                    # Debugging tools for the environment, libnl required for set_nccl_env.sh
+                    if command -v apt-get >/dev/null 2>&1; then
+                      # Using https://github.com/smarterclayton/vllm-dp-lws/tree/working_branch
+                      apt-get install -y pciutils binutils kmod strace gdb python3.12-dbg
+                    else
+                      dnf install -qy gdb
+                      # dnf debuginfo-install -qy python3.12-3.12.9-1.el9_6.1.x86_64
+                    fi
+
+                    # Create ~/.bashrc so that kubectl exec -- /bin/bash is ready to run
+                    cat <<'EOF' > ~/.bashrc
+                    #!/bin/bash
+
+                    bind '"\e[A":history-search-backward'
+                    bind '"\e[B":history-search-forward'
+
+                    shopt -s histappend
+                    export HISTFILESIZE=1000000
+                    export HISTSIZE=1000000
+                    export HISTCONTROL=ignoreboth
+                    shopt -s cmdhist
+
+                    if command -v apt-get >/dev/null 2>&1; then
+                      export VLLM_HOME=/app/venv
+                    else
+                      # Assume we're using the RH midstream image
+                      export VLLM_HOME=/opt/vllm
+                      export HF_HUB_OFFLINE=0
+                    fi
+
+                    # Configure gIB (assuming v1.10 because of NCCL 2.27 for vLLM main)
+                    export PATH=/usr/local/nvidia/bin:${PATH}:/usr/local/gib/bin
+                    source /usr/local/gib/scripts/set_nccl_env.sh
+
+                    export START_RANK=$(( ${LWS_WORKER_INDEX:-0} * DP_SIZE_LOCAL ))
+                    if [ "${LWS_WORKER_INDEX:-0}" -ne 0 ]; then
+                      #################
+                      # Prefill launch
+                      #################
+                      # Workaround the torch compilation cache reuse temporarily
+                      rm -rf $VLLM_CACHE_ROOT/torch_compile_cache
+                      serve=(
+                      env \
+                        env VLLM_ALL2ALL_BACKEND=deepep_high_throughput \
+                        ${VLLM_HOME}/bin/vllm serve \
+                        ${VLLM_MODEL} \
+                        --port 8000 \
+                        # crash / memory access error on prefill without this
+                        --max-model-len 131072 \
+                        --disable-log-requests \
+                        --speculative-config '$(VLLM_SPECULATIVE_CONFIG)' \
+                        --enable-expert-parallel \
+                        --enable-eplb \
+                        --num-redundant-experts 0 \
+                        --eplb-window-size 1000 \
+                        --eplb-step-interval 3000 \
+                        --eplb-log-balancedness \
+                        --tensor-parallel-size $TP_SIZE \
+                        --data-parallel-size $DP_SIZE_LOCAL \
+                        --data-parallel-size-local $DP_SIZE_LOCAL \
+                        --data-parallel-address localhost \
+                        --data-parallel-rpc-port 5555 \
+                        --data-parallel-start-rank 0 \
+                        --kv-transfer-config '{"kv_connector":"NixlConnector", "kv_role":"kv_both"}' \
+                        --trust-remote-code
+                      )
+                    else
+                      #################
+                      # Decode launch
+                      #################
+                      serve=(
+                      ${VLLM_HOME}/bin/vllm serve \
+                        ${VLLM_MODEL} \
+                        --port 8000 \
+                        --max-model-len 131072 \
+                        --disable-log-requests \
+                        --speculative-config '$(VLLM_SPECULATIVE_CONFIG)' \
+                        --enable-expert-parallel \
+                        --enable-eplb \
+                        --num-redundant-experts $DP_SIZE_LOCAL \
+                        --eplb-window-size 1000 \
+                        --eplb-step-interval 3000 \
+                        --eplb-log-balancedness \
+                        --tensor-parallel-size $TP_SIZE \
+                        --data-parallel-size $DP_SIZE_LOCAL \
+                        --data-parallel-size-local $DP_SIZE_LOCAL \
+                        --data-parallel-address localhost \
+                        --data-parallel-rpc-port 5555 \
+                        --data-parallel-start-rank 0 \
+                        --kv-transfer-config '{"kv_connector":"NixlConnector", "kv_role":"kv_both"}' \
+                        --trust-remote-code
+                      )
+                    fi
+                    eval "serve+=( ${VLLM_DEBUG_ARGS:-} )"
+
+                    # Run a benchmark that is decode-only
+                    function bench_decode {
+                      ( if [[ -n "${DISAGG-}" ]]; then PORT=8200; headers=" --header x-prefiller-host-port=${LWS_LEADER_ADDRESS/$HOSTNAME/$HOSTNAME-1}:8000 "; fi
+                      VIRTUAL_ENV=/app/venv uv run /app/venv/bin/vllm bench serve ${headers:-} --base-url http://${LWS_LEADER_ADDRESS}:${PORT:-8000} --model ${VLLM_MODEL} --dataset-name random --seed $(date +%M%H%M%S) --ignore-eos --random-input-len ${TOKENS_IN:-2} --random-output-len ${TOKENS_OUT:-100} --max-concurrency ${MAX_CONCURRENCY:-512} --num-prompts ${NUM_PROMPTS:-$((${MAX_CONCURRENCY:-512} * 3))} )
+                    }
+                    # Run a benchmark that is prefill-only
+                    function bench_prefill {
+                      ( if [[ -n "${DISAGG-}" ]]; then PORT=8200; headers=" --header x-prefiller-host-port=${LWS_LEADER_ADDRESS/$HOSTNAME/$HOSTNAME-1}:8000 "; fi
+                      VIRTUAL_ENV=/app/venv uv run /app/venv/bin/vllm bench serve ${headers:-} --base-url http://${LWS_LEADER_ADDRESS}:${PORT:-8000} --model ${VLLM_MODEL} --dataset-name random --seed $(date +%M%H%M%S) --ignore-eos --random-input-len ${TOKENS_IN:-10000} --random-output-len ${TOKENS_OUT:-1} --max-concurrency ${MAX_CONCURRENCY:-$((${DP_SIZE}*3))} --num-prompts ${NUM_PROMPTS:-$((${MAX_CONCURRENCY:-8} * 3))} )
+                    }
+                    # Run a benchmark with mixed prefill and decode
+                    function bench_mixed {
+                      ( if [[ -n "${DISAGG-}" ]]; then PORT=8200; headers=" --header x-prefiller-host-port=${LWS_LEADER_ADDRESS/$HOSTNAME/$HOSTNAME-1}:8000 "; fi
+                      VIRTUAL_ENV=/app/venv uv run /app/venv/bin/vllm bench serve ${headers:-} --base-url http://${LWS_LEADER_ADDRESS}:${PORT:-8000} --model ${VLLM_MODEL} --dataset-name random --seed $(date +%M%H%M%S) --ignore-eos --random-input-len ${TOKENS_IN:-1000} --random-output-len ${TOKENS_OUT:-100} --max-concurrency ${MAX_CONCURRENCY:-512} --num-prompts ${NUM_PROMPTS:-$((${MAX_CONCURRENCY:-8} * 3))} )
+                    }
+                    # Start Qwen3 for a faster and simpler MoE test harness
+                    function serve_simple {
+                      ${VLLM_HOME}/bin/vllm serve Qwen/Qwen3-30B-A3B-FP8 --port ${PORT:-8000} --enforce-eager --disable-log-requests --enable-expert-parallel --tensor-parallel-size 1 --data-parallel-size 2 --trust-remote-code
+                    }
+                    function req_complete {
+                      curl -i http://${LWS_LEADER_ADDRESS}:${PORT:-8000}/v1/completions -H 'Content-Type: application/json' -d "{\"temperature\": 0,\"prompt\": \"Write as if you were a critic: San Francisco\",\"max_tokens\": ${TOKENS_OUT:-100},\"model\": \"${VLLM_MODEL}\"}"
+                    }
+                    # Execute DeepEP's internode latency and tuning test
+                    function test_internode {
+                      VIRTUAL_ENV=/app/venv WORLD_SIZE=$(( ${DP_SIZE} / ${DP_SIZE_LOCAL} )) MASTER_ADDR=${LWS_LEADER_ADDRESS} RANK=$(( ${START_RANK} / ${DP_SIZE_LOCAL} )) uv run /app/DeepEP/tests/test_internode.py
+                    }
+                    function req_disagg {
+                      curl -i localhost:8200/v1/completions \
+                        -H "x-prefiller-host-port: ${LWS_LEADER_ADDRESS/$HOSTNAME/$HOSTNAME-1}:${PORT:-8000}" \
+                        -H 'Content-Type: application/json' -d \
+                        '{"temperature": 0,"prompt": "Write as if you were a critic, and provide extensive details of the time you spent with the subject. Don''t forget to provide personal anecdotes.\n\n: San Francisco","max_tokens": 10,"model": "${VLLM_MODEL}"}'
+                    }
+                    function collect_vllm_env {
+                      wget -O collect_env.py https://raw.githubusercontent.com/vllm-project/vllm/main/vllm/collect_env.py && VIRTUAL_ENV=/app/venv uv run collect_env.py
+                    }
+
+                    set +e
+                    EOF
+
+                    #######################################################
+                    # INSTALL Dependencies that have a _BRANCH variable set
+                    #######################################################
+                    components=( deepep deepgemm flashinfer vllm )
+                    for script in "${components[@]}"; do
+                      branch="${script^^}_BRANCH"
+                      if [[ -z "${!branch-}" ]]; then
+                        continue
+                      fi
+                      for location in /init-scripts /install-scripts; do
+                        if [[ -f ${location}/${script}.sh ]]; then
+                          ${location}/${script}.sh
+                          break
+                        fi
+                      done
+                    done
+                    echo
+                    for script in "${components[@]}"; do
+                      echo "${script} $( git -C "/app/${script}" log --oneline -1 2>&1 || true )"
+                    done
+                    echo
+
+                    # If set, hold the container before launch to allow debugging
+                    if [[ -n "${INTERACTIVE:-}" ]]; then
+                      echo "Waiting for /code/launch to run vLLM"
+                      while [[ ! -f /code/launch ]]; do
+                        sleep 10
+                      done
+                      rm /code/launch
+                    fi
+
+                    source ~/.bashrc
+                    env | sort
+
+                    exec "${serve[@]}"
+                env:
+                  - name: INTERACTIVE
+                    value: ""
+                  - name: DROP_KERNEL_CACHE
+                    value: ""
+
+                  # Uncomment to force vLLM to build at a specific point
+                  # - name: VLLM_REPO_URL
+                  #   value: "https://github.com/vllm-project/vllm.git"
+                  # - name: VLLM_BRANCH
+                  #   value: "main"
+                  # - name: VLLM_COMMIT
+                  #   value: ""
+                  # Set to 1 when running from a build significantly older than vLLM HEAD, as
+                  # the vLLM kernels may not be compatible with latest
+                  # - name: VLLM_USE_PRECOMPILED
+                  #   value: "0"
+                  # When building packages at runtime, ensure we are compiled for hopper and blackwell
+                  - name: TORCH_CUDA_ARCH_LIST
+                    value: "9.0a 10.0"
+
+                  # NIXL Configuration
+                  - name: VLLM_NIXL_SIDE_CHANNEL_PORT
+                    value: "6555"
+                  - name: VLLM_NIXL_SIDE_CHANNEL_HOST
+                    valueFrom:
+                      fieldRef:
+                        fieldPath: status.podIP
+                  # Force use of TCP for NIXL disaggregation
+                  #- name: UCX_TLS
+                  #  value: "tcp,cuda_copy"
+                  #- name: UCX_NET_DEVICES
+                  #  value: "eth0"
+                  # GCP RDMA Networking config
+                  - name: NVSHMEM_REMOTE_TRANSPORT
+                    value: "ibgda"
+                  - name: NVSHMEM_IB_ENABLE_IBGDA
+                    value: "true"
+                  # Currently disabled as we don't mount /dev/gdrdrv into the container
+                  - name: NVIDIA_GDRCOPY
+                    value: "disabled"
+                  - name: NVSHMEM_BOOTSTRAP_UID_SOCK_IFNAME
+                    value: "eth0"
+                  - name: GLOO_SOCKET_IFNAME
+                    value: "eth0"
+
+                  # Debugging logging
+                  - name: UCX_LOG_LEVEL
+                    value: "debug"
+                  - name: UCX_HANDLE_ERRORS
+                    value: "freeze"
+                  - name: UCX_ERROR_SIGNALS
+                    value: "SIGSEGV"
+                  - name: NVSHMEM_INFO
+                    value: "true"
+                  - name: NVSHMEM_DEBUG
+                    value: "INFO"
+                  - name: NVSHMEM_DEBUG_SUBSYS
+                    value: "ALL"
+                  - name: NCCL_DEBUG
+                    value: INFO # trace
+                  - name: VLLM_LOGGING_LEVEL
+                    value: "DEBUG"
+                  - name: HF_HUB_DISABLE_PROGRESS_BARS
+                    value: "1"
+                  - name: VLLM_DEBUG_ARGS
+                    value: ""
+                  # Uncomment to debug NCCL hangs or crashes
+                  #- name: NCCL_BLOCKING_WAIT
+                  #  value: "1"
+                  # Uncomment to identify where CPP calls are crashing
+                  #- name: TORCH_SHOW_CPP_STACKTRACES
+                  #  value: "1"
+                  # Uncomment to get more accurate crash traces
+                  # - name: CUDA_LAUNCH_BLOCKING
+                  #  value: "1"
+                  - name: VLLM_TORCH_PROFILER_DIR
+                    value: "/code/traces"
+
+                  # The model and any specific config
+                  - name: VLLM_MODEL
+                    value: "deepseek-ai/DeepSeek-V3.1"
+                    #value: "nvidia/DeepSeek-R1-FP4"
+                  # Use this when running DeepSeek @ FP4
+                  #- name: VLLM_USE_FLASHINFER_MOE_FP4
+                  #  value: "1"
+
+                  # vLLM performance tuning
+                  - name: VLLM_USE_DEEP_GEMM
+                    value: "1"
+                  # Select an all2all backend optimized for latency or throughput
+                  - name: VLLM_ALL2ALL_BACKEND
+                    # value: "naive"
+                    # value: "pplx"
+                    # value: "deepep_high_throughput"
+                    value: deepep_low_latency
+                  - name: VLLM_ATTENTION_BACKEND
+                    value: CUTLASS_MLA
+                  # Avoid known hangs with CUTLASS_MLA on B200 by forcing splits to be 1
+                  - name: FORCE_NUM_KV_SPLITS
+                    value: "1"
+                  - name: DP_SIZE
+                    value: "8"
+                  - name: TP_SIZE
+                    value: "1"
+                  - name: DP_SIZE_LOCAL
+                    value: "8"
+                  - name: VLLM_MOE_DP_CHUNK_SIZE
+                    value: "512"
+                  - name: VLLM_RANDOMIZE_DP_DUMMY_INPUTS
+                    value: "1"
+                  - name: VLLM_SPECULATIVE_CONFIG
+                    value: "" # '{"method":"deepseek_mtp","num_speculative_tokens":1}'
+
+                  # Use cache directories from the host Cache directories
+                  - name: CCACHE_DIR
+                    value: /root/.nv/ComputeCache/.ccache
+                  - name: VLLM_CACHE_ROOT
+                    value: /root/.nv/ComputeCache/.vllm
+                  - name: FLASHINFER_WORKSPACE_BASE
+                    value: /root/.nv/ComputeCache
+                  - name: TRITON_CACHE_DIR
+                    value: /root/.nv/ComputeCache/.triton
+                  - name: DG_JIT_CACHE_DIR
+                    value: /root/.nv/ComputeCache/.deepgemm
+                  - name: HF_HUB_CACHE
+                    value: /huggingface-cache
+
+                  # Mount secrets for loading images
+                  - name: HF_TOKEN
+                    valueFrom:
+                      secretKeyRef:
+                        name: hf-secret
+                        key: HF_TOKEN
+                        optional: true
+
+                terminationMessagePolicy: FallbackToLogsOnError
+                lifecycle:
+                  preStop:
+                    sleep:
+                      seconds: 1
+                readinessProbe:
+                  httpGet:
+                    path: /health
+                    port: 8000
+                    scheme: HTTP
+                  periodSeconds: 1
+                  successThreshold: 1
+                  failureThreshold: 1
+                  timeoutSeconds: 1
+
+                # may not be needed on GKE
+                securityContext:
+                  runAsUser: 0  # needed for RH image to be able to override files (runs as vllm)
+                  privileged: true # needed to open the host device for UAR ??
+                  capabilities:
+                    add:
+                    - "IPC_LOCK"
+                    - "SYS_RAWIO"
+                resources:
+                  limits:
+                    memory: 512Gi
+                    ephemeral-storage: 3Ti
+                    nvidia.com/gpu: "8"
+                    
+                    networking.gke.io.networks/rdma-0: "1"
+                    networking.gke.io.networks/rdma-0.IP: "1"
+                    networking.gke.io.networks/rdma-1: "1"
+                    networking.gke.io.networks/rdma-1.IP: "1"
+                    networking.gke.io.networks/rdma-2: "1"
+                    networking.gke.io.networks/rdma-2.IP: "1"
+                    networking.gke.io.networks/rdma-3: "1"
+                    networking.gke.io.networks/rdma-3.IP: "1"
+                    networking.gke.io.networks/rdma-4: "1"
+                    networking.gke.io.networks/rdma-4.IP: "1"
+                    networking.gke.io.networks/rdma-5: "1"
+                    networking.gke.io.networks/rdma-5.IP: "1"
+                    networking.gke.io.networks/rdma-6: "1"
+                    networking.gke.io.networks/rdma-6.IP: "1"
+                    networking.gke.io.networks/rdma-7: "1"
+                    networking.gke.io.networks/rdma-7.IP: "1"                    
+                  requests:
+                    cpu: 32
+                    memory: 512Gi
+                    ephemeral-storage: 3Ti
+                    nvidia.com/gpu: "8"
+
+                    networking.gke.io.networks/rdma-0: "1"
+                    networking.gke.io.networks/rdma-0.IP: "1"
+                    networking.gke.io.networks/rdma-1: "1"
+                    networking.gke.io.networks/rdma-1.IP: "1"
+                    networking.gke.io.networks/rdma-2: "1"
+                    networking.gke.io.networks/rdma-2.IP: "1"
+                    networking.gke.io.networks/rdma-3: "1"
+                    networking.gke.io.networks/rdma-3.IP: "1"
+                    networking.gke.io.networks/rdma-4: "1"
+                    networking.gke.io.networks/rdma-4.IP: "1"
+                    networking.gke.io.networks/rdma-5: "1"
+                    networking.gke.io.networks/rdma-5.IP: "1"
+                    networking.gke.io.networks/rdma-6: "1"
+                    networking.gke.io.networks/rdma-6.IP: "1"
+                    networking.gke.io.networks/rdma-7: "1"
+                    networking.gke.io.networks/rdma-7.IP: "1"
+                volumeMounts:
+                  - name: shm
+                    mountPath: /dev/shm
+                  - name: init-scripts-volume
+                    mountPath: /init-scripts
+                  - name: hf-cache
+                    mountPath: /huggingface-cache
+                  - name: nv-compute-cache
+                    mountPath: /root/.nv/ComputeCache
+                  - name: vllm
+                    mountPath: /code
+                  # Required to access the gIB configuration for NCCL on GKE
+                  - mountPath: /usr/local/gib
+                    name: gib
+
+              volumes:
+                # Volume for the init script from ConfigMap
+                - name: init-scripts-volume
+                  configMap:
+                    name: vllm-init-scripts-config
+                    defaultMode: 0755 # Set execute permissions for the script
+                    optional: true
+                # Needed for NCCL to function
+                - name: shm
+                  emptyDir:
+                    medium: Memory
+                    # Verified that we need about 2Gi to start on NCCL 2.27
+                    sizeLimit: 2Gi
+                # Use a cache directory across pods on the SSD to avoid redownloading large models
+                - name: hf-cache
+                  hostPath:
+                    path: /mnt/stateful_partition/kube-ephemeral-ssd/shared_disk/hfcache/
+                    type: DirectoryOrCreate
+                # Use a cache directory across pods on the SSD to avoid recompiling kernels
+                # Note: there are occasionally bugs in compilation cache hashing that may trigger
+                - name: nv-compute-cache
+                  hostPath:
+                    path: /mnt/stateful_partition/kube-ephemeral-ssd/shared_disk/nv-compute-cache
+                    type: DirectoryOrCreate
+                # Necessary for gIB
+                - name: gib
+                  hostPath:
+                    path: /home/kubernetes/bin/gib
+                    type: ""
+                # Scratch directory for the workload
+                - name: vllm
+                  emptyDir: {}
+
+              # Add the llm-d routing sidecar for disaggregation testing
+              initContainers:
+              - args:
+                - --port=8200
+                - --vllm-port=8000
+                - --connector=nixlv2
+                - -v=5
+                - --secure-proxy=false
+                image: ghcr.io/llm-d/llm-d-routing-sidecar:v0.2.0
+                imagePullPolicy: Always
+                name: sidecar
+                ports:
+                - containerPort: 8200
+                  protocol: TCP
+                restartPolicy: Always
+                terminationMessagePolicy: FallbackToLogsOnError
+                

@@ -1,0 +1,236 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: vllm-repro
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: vllm-repro
+  podManagementPolicy: Parallel
+  updateStrategy:
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        server: vllm
+        app: vllm-repro
+    spec:
+      terminationGracePeriodSeconds: 2
+      containers:
+      - name: vllm-worker
+        image: 
+          ghcr.io/llm-d/llm-d-cuda-dev:pr-291
+        imagePullPolicy: Always
+        workingDir: /code
+        stdin: true
+        tty: true
+        command: 
+        - /bin/bash
+        - -c
+        - |
+          set -euo pipefail
+          set -x
+
+          if [[ -n "${DROP_KERNEL_CACHE}" ]]; then
+            find /root/.nv/ComputeCache -mindepth 1 -delete
+          fi
+
+          # Set up the image to be able to build different versions if necessary
+          dnf install -qy gdb gettext strace
+          curl -LsSf https://astral.sh/uv/install.sh | env UV_INSTALL_DIR="/usr/local/bin/" sh
+          export VENV_PATH="/opt/vllm"
+          export PYTHON="${VENV_PATH}/bin/python"
+          export PATH="${VENV_PATH}/bin:${PATH}"
+          "${PYTHON}" -m ensurepip --upgrade
+          "${PYTHON}" -m pip install -U pip wheel setuptools
+
+          # Create ~/.bashrc so that kubectl exec -- /bin/bash is ready to run
+          cat <<'EOF' > ~/.bashrc
+          #!/bin/bash
+
+          bind '"\e[A":history-search-backward'
+          bind '"\e[B":history-search-forward'
+
+          shopt -s histappend
+          export HISTFILESIZE=1000000
+          export HISTSIZE=1000000
+          export HISTCONTROL=ignoreboth
+          shopt -s cmdhist
+
+          # ensure bash sessions have this set as well
+          export VENV_PATH="/opt/vllm"
+          export PYTHON="${VENV_PATH}/bin/python"
+          export PATH="${VENV_PATH}/bin:${PATH}"
+
+          # reproducer
+          function reproducer {
+            CUDA_VISIBLE_DEVICES=1 uv run /opt/vllm-source/benchmarks/kernels/deepgemm/benchmark_fp8_block_dense_gemm.py
+          }
+          function debug_reproducer { 
+            gdb --args python /opt/vllm-source/benchmarks/kernels/deepgemm/benchmark_fp8_block_dense_gemm.py
+          }
+          function deepgemm_test {
+            git clone https://github.com/deepseek-ai/DeepGEMM.git /code/deepgemm
+            python /code/deepgemm/tests/test_fp8.py
+          }
+
+          function collect_vllm_env {
+            wget -O collect_env.py https://raw.githubusercontent.com/vllm-project/vllm/main/vllm/collect_env.py && VIRTUAL_ENV=/app/venv uv run collect_env.py
+          }
+          function print_stacks {
+            pgrep 'VLLM' | xargs -P8 -I {} gdb -p {} --batch --eval-command 'py-bt' | grep -v 'New LWP'
+          }
+          function print_cuda_stacks {
+            pgrep 'VLLM' | xargs -P8 -I {} cuda-gdb -p {} --batch --eval-command 'info cuda launch trace' | grep -v 'LWP'
+          }
+          EOF
+
+          #######################################################
+          # INSTALL Dependencies that have a _BRANCH variable set
+          #######################################################
+          components=( deepep deepgemm flashinfer vllm )
+          for script in "${components[@]}"; do
+            branch="${script^^}_BRANCH"
+            force="${script^^}_INSTALL"
+            if [[ -z "${!branch-}" && -z "${!force-}" ]]; then
+              continue
+            fi
+            for location in /init-scripts /install-scripts; do
+              if [[ -f ${location}/${script}.sh ]]; then
+                ${location}/${script}.sh
+                break
+              fi
+            done
+          done
+          echo
+          for script in "${components[@]}"; do
+            echo "${script} $( git -C "/app/${script}" log --oneline -1 2>&1 || true )"
+          done
+          echo
+
+          source ~/.bashrc
+
+          # If set, hold the container before launch to allow debugging
+          if [[ -n "${INTERACTIVE:-}" ]]; then
+            echo "Waiting for /code/launch to run vLLM"
+            while [[ ! -f /code/launch ]]; do
+              sleep 10
+            done
+            rm /code/launch
+          fi
+
+          set +e
+          set -x
+          env | sort
+          nvidia-smi
+          reproducer
+          exec $( which sleep ) infinity
+
+        env:
+          - name: INTERACTIVE
+            value: ""
+          - name: DROP_KERNEL_CACHE
+            value: ""
+
+          - name: VLLM_LOGGING_LEVEL
+            value: "DEBUG"
+          # Uncomment to debug NCCL hangs or crashes
+          #- name: NCCL_BLOCKING_WAIT
+          #  value: "1"
+          # Uncomment to identify where CPP calls are crashing
+          #- name: TORCH_SHOW_CPP_STACKTRACES
+          #  value: "1"
+          - name: DG_JIT_DEBUG
+            value: "1"
+          # Uncomment to get more accurate crash traces
+          #- name: CUDA_LAUNCH_BLOCKING
+          #  value: "1"
+          # - name: CUDA_ENABLE_USER_TRIGGERED_COREDUMP
+          #   value: "1"
+          - name: VLLM_TORCH_PROFILER_DIR
+            value: "/code/traces"
+
+          # vLLM performance tuning
+          - name: VLLM_USE_DEEP_GEMM
+            value: "1"
+          # Select an all2all backend optimized for latency or throughput
+          - name: VLLM_ALL2ALL_BACKEND
+            value: deepep_low_latency
+          - name: VLLM_ATTENTION_BACKEND
+            value: CUTLASS_MLA
+
+
+          # Use cache directories from the host Cache directories
+          - name: CCACHE_DIR
+            value: /root/.nv/ComputeCache/.ccache
+          - name: VLLM_CACHE_ROOT
+            value: /root/.nv/ComputeCache/.vllm
+          - name: FLASHINFER_WORKSPACE_BASE
+            value: /root/.nv/ComputeCache
+          - name: TRITON_CACHE_DIR
+            value: /root/.nv/ComputeCache/.triton
+          - name: DG_JIT_CACHE_DIR
+            value: /root/.nv/ComputeCache/.deepgemm
+          - name: HF_HUB_CACHE
+            value: /huggingface-cache
+
+          # Mount secrets for loading images
+          - name: HF_TOKEN
+            valueFrom:
+              secretKeyRef:
+                name: llm-d-hf-token
+                key: HF_TOKEN
+                optional: true
+
+        # may not be needed on GKE
+        securityContext:
+          runAsUser: 0  # needed for RH image to be able to override files (runs as vllm)
+          # NVSHMEM IBGDA requires CAP_SYS_ADMIN or nvidia.ko to have PeerMappingOverride=1 set
+          # Since PeerMappingOverride allows workloads to potential impact each other on the
+          # same host, privileged is no less secure.
+          privileged: true # needed to open the host device for UAR ??
+          capabilities:
+            add:
+            - "IPC_LOCK"
+            - "SYS_RAWIO"
+        resources:
+          limits:
+            ephemeral-storage: 3Ti
+            nvidia.com/gpu: "8"
+          requests:
+            cpu: 32
+            memory: 512Gi
+            ephemeral-storage: 3Ti
+            nvidia.com/gpu: "8"
+        volumeMounts:
+          - name: shm
+            mountPath: /dev/shm
+          - name: init-scripts-volume
+            mountPath: /init-scripts
+          - name: hf-cache
+            mountPath: /huggingface-cache
+          - name: nv-compute-cache
+            mountPath: /root/.nv/ComputeCache
+          - name: vllm
+            mountPath: /code
+          # Required to access the gIB configuration for NCCL on GKE
+          #- mountPath: /usr/local/gib
+          #  name: gib
+
+      volumes:
+        - name: init-scripts-volume
+          configMap:
+            name: vllm-init-scripts-config
+            defaultMode: 0755
+            optional: true
+        - name: shm
+          emptyDir:
+            medium: Memory
+            sizeLimit: 1Gi
+        - name: hf-cache
+          emptyDir: {}
+        - name: nv-compute-cache
+          emptyDir: {}
+        - name: vllm
+          emptyDir: {}

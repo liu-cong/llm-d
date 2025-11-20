@@ -1,0 +1,120 @@
+# apiVersion: resource.k8s.io/v1
+# kind: DeviceClass
+# metadata:
+#   name: dranet
+# spec:
+#   selectors:
+#     - cel:
+#         expression: device.driver == "dra.net"
+
+---
+apiVersion: resource.k8s.io/v1
+kind: ResourceClaimTemplate
+metadata:
+  name: 1-gpu-nic-aligned
+spec:
+  spec:
+    devices:
+      requests:
+      - name: gpu
+        exactly:
+          deviceClassName: gpu.nvidia.com
+          count: 1
+      - name: nic
+        exactly:
+          deviceClassName: mrdma.google.com
+          allocationMode: ExactCount
+          count: 1
+      constraints:
+      - matchAttribute: "resource.kubernetes.io/pcieRoot"
+---
+apiVersion: resource.k8s.io/v1
+kind: ResourceClaimTemplate
+metadata:
+  name: 2-gpu-nic-aligned
+spec:
+  spec:
+    devices:
+      requests:
+      - name: gpu
+        exactly:
+          deviceClassName: gpu.nvidia.com
+          count: 2
+      - name: nic
+        exactly:
+          deviceClassName: mrdma.google.com
+          allocationMode: ExactCount
+          count: 2
+          selectors:
+          - cel:
+              expression: device.attributes["dra.net"].ifName == "gpu1rdma0" || device.attributes["dra.net"].ifName == "gpu0rdma0"
+      constraints:
+      - matchAttribute: "resource.kubernetes.io/pcieRoot"
+---
+apiVersion: resource.k8s.io/v1
+kind: ResourceClaimTemplate
+metadata:
+  name: 8-gpu-nic-aligned
+spec:
+  spec:
+    devices:
+      requests:
+      - name: gpu
+        exactly:
+          deviceClassName: gpu.nvidia.com
+          count: 8
+      - name: nic
+        exactly:
+          deviceClassName: mrdma.google.com
+          allocationMode: ExactCount
+          count: 8
+      constraints:
+      - matchAttribute: "resource.kubernetes.io/pcieRoot"
+
+---
+apiVersion: resource.k8s.io/v1
+kind: ResourceClaimTemplate
+metadata:
+  name: 4-gpu-nic-aligned
+spec:
+  spec:
+    devices:
+      requests:
+      - name: gpu
+        exactly:
+          deviceClassName: gpu.nvidia.com
+          count: 4
+      - name: nic
+        exactly:
+          deviceClassName: mrdma.google.com
+          allocationMode: ExactCount
+          count: 4
+          selectors:
+          - cel:
+              expression: device.attributes["dra.net"].ifName == "gpu1rdma0" || device.attributes["dra.net"].ifName == "gpu0rdma0"
+      # constraints:
+      # - matchAttribute: "resource.kubernetes.io/pcieRoot"
+        
+---
+# apiVersion: resource.k8s.io/v1
+# kind: ResourceClaimTemplate
+# metadata:
+#   name: 4-gpu-nic
+# spec:
+#   spec:
+#     devices:
+#       requests:
+#       - name: gpu
+#         exactly:
+#           deviceClassName: gpu.nvidia.com
+#           count: 4
+#       - name: nic
+#         exactly:
+#           deviceClassName: mrdma.google.com
+#           allocationMode: ExactCount
+#           count: 4
+#           selectors:
+#           - cel:
+#               expression: device.attributes["dra.net"].ifName == "gpu1rdma0" || device.attributes["dra.net"].ifName == "gpu0rdma0"
+
+

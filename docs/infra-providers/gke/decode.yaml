@@ -1,0 +1,203 @@
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/version: v0.2.0
+    helm.sh/chart: llm-d-modelservice-v0.2.11
+  name: ms-pd-llm-d-modelservice-decode
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      llm-d.ai/inferenceServing: "true"
+      llm-d.ai/model: ms-pd-llm-d-modelservice
+      llm-d.ai/role: decode
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        llm-d.ai/inferenceServing: "true"
+        llm-d.ai/model: ms-pd-llm-d-modelservice
+        llm-d.ai/role: decode
+    spec:
+      containers:
+      - command:
+        - /bin/bash
+        - -c
+        args:
+        - |
+          source /usr/local/gib/scripts/set_nccl_env.sh
+          export NCCL_IB_ADAPTIVE_ROUTING=0
+          export NCCL_IB_PCI_RELAXED_ORDERING=0
+          export NCCL_NET_GDR_LEVEL=0
+          export NCCL_IB_GID_INDEX=3
+          export NCCL_SOCKET_IFNAME="eth0"
+          export NCCL_P2P_LEVEL="PIX"
+          export LD_LIBRARY_PATH=/usr/local/nvidia/lib64:${LD_LIBRARY_PATH}
+          vllm serve RedHatAI/Llama-3.3-70B-Instruct-FP8-dynamic \
+            --port 8200 \
+            --served-model-name "RedHatAI/Llama-3.3-70B-Instruct-FP8-dynamic" \
+            --tensor-parallel-size 2 \
+            --block-size 128 \
+            --kv-transfer-config '{"kv_connector":"NixlConnector", "kv_role":"kv_both"}' \
+            --disable-log-requests \
+            --disable-uvicorn-access-log \
+            --max-model-len 32000 \
+            --gpu-memory-utilization 0.7
+      # - args:
+      #   - RedHatAI/Llama-3.3-70B-Instruct-FP8-dynamic
+      #   - --port
+      #   - "8200"
+      #   - --served-model-name
+      #   - RedHatAI/Llama-3.3-70B-Instruct-FP8-dynamic
+      #   - --tensor-parallel-size
+      #   - "4"
+      #   - --block-size
+      #   - "128"
+      #   - --kv-transfer-config
+      #   - '{"kv_connector":"NixlConnector", "kv_role":"kv_both"}'
+      #   - --disable-uvicorn-access-log
+      #   - --max-model-len
+      #   - "32000"
+      #   command:
+      #   - vllm
+      #   - serve
+        env:
+        - name: NCCL_IB_HCA
+          value: "=mlx5_0:1,mlx5_1:1"
+        - name: VLLM_NIXL_SIDE_CHANNEL_HOST
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: status.podIP
+        - name: VLLM_LOGGING_LEVEL
+          value: DEBUG
+        - name: NCCL_TELEMETRY_MODE
+          value: "0"
+        - name: NCCL_DEBUG
+          value: "INFO"
+        - name: NCCL_DEBUG_SUBSYS
+          value: "INIT,ENV,GRAPH,NET,COLL,TUNING"
+        - name: NCCL_DEBUG_FILE
+          value: "/model-cache/nccl_log.txt"
+        - name: DP_SIZE
+          value: "1"
+        - name: TP_SIZE
+          value: "4"
+        - name: HF_HOME
+          value: /model-cache
+        - name: HF_TOKEN
+          valueFrom:
+            secretKeyRef:
+              key: HF_TOKEN
+              name: llm-d-hf-token
+        image: ghcr.io/llm-d/llm-d-cuda:v0.3.0
+        imagePullPolicy: IfNotPresent
+        name: vllm
+        securityContext:
+          privileged: true
+          capabilities:
+            add: [ "IPC_LOCK", "SYS_RESOURCE" ]
+          # allowPrivilegeEscalation: true
+          # runAsNonRoot: true
+        ports:
+        - containerPort: 8200
+          name: metrics
+          protocol: TCP
+        resources:
+          claims:
+            - name: gpu-and-nic
+            # - name: gpu1
+            # - name: gpu2
+            # - name: gpu3
+            # - name: gpu4
+          limits:
+            cpu: "16"
+            memory: 64Gi
+          requests:
+            cpu: "16"
+            memory: 64Gi
+        volumeMounts:
+        - mountPath: /.config
+          name: metrics-volume
+        - mountPath: /dev/shm
+          name: shm
+        - mountPath: /.cache
+          name: torch-compile-cache
+        - mountPath: /model-cache
+          name: model-storage
+        - name: gib
+          mountPath: /usr/local/gib
+          # 1. Mount the physical PCI device tree (Crucial for errno 19)
+        - name: host-sys-devices
+          mountPath: /sys/devices
+          readOnly: true
+        # 2. Mount the InfiniBand class to see device details
+        - name: host-sys-ib
+          mountPath: /sys/class/infiniband
+          readOnly: true
+        # 3. Mount the Verbs class (sometimes needed for uverbs)
+        - name: host-sys-verbs
+          mountPath: /sys/class/infiniband_verbs
+          readOnly: true
+      initContainers:
+      - args:
+        - --port=8000
+        - --vllm-port=8200
+        - --connector=nixlv2
+        - -v=5
+        - --secure-proxy=false
+        image: ghcr.io/llm-d/llm-d-routing-sidecar:v0.3.0
+        imagePullPolicy: Always
+        name: routing-proxy
+        ports:
+        - containerPort: 8000
+          protocol: TCP
+        resources: {}
+        restartPolicy: Always
+        securityContext:
+          allowPrivilegeEscalation: false
+          runAsNonRoot: true
+      resourceClaims:
+        - name: gpu-and-nic
+          resourceClaimTemplateName: 2-gpu-nic-aligned
+        # - name: gpu1
+        #   resourceClaimTemplateName: 1-gpu-nic-aligned
+        # - name: gpu2
+        #   resourceClaimTemplateName: 1-gpu-nic-aligned
+        # - name: gpu3
+        #   resourceClaimTemplateName: 1-gpu-nic-aligned
+        # - name: gpu4
+        #   resourceClaimTemplateName: 1-gpu-nic-aligned
+      tolerations:
+            - key: "nvidia.com/gpu"
+              operator: "Equal"
+              value: "present"
+              effect: "NoSchedule"
+      volumes:
+      - emptyDir: {}
+        name: metrics-volume
+      - emptyDir:
+          medium: Memory
+          sizeLimit: 16Gi
+        name: shm
+      - emptyDir: {}
+        name: torch-compile-cache
+      - emptyDir:
+          sizeLimit: 100Gi
+        name: model-storage
+      - name: gib
+        hostPath:
+          path: /home/kubernetes/bin/gib
+      - name: host-sys-devices
+        hostPath:
+          path: /sys/devices
+      - name: host-sys-ib
+        hostPath:
+          path: /sys/class/infiniband
+      - name: host-sys-verbs
+        hostPath:
+          path: /sys/class/infiniband_verbs

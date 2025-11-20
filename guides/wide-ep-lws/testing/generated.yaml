@@ -1,0 +1,225 @@
+
+apiVersion: leaderworkerset.x-k8s.io/v1
+kind: LeaderWorkerSet
+metadata:
+spec:
+  leaderWorkerTemplate:
+    size: 2
+    workerTemplate:
+      metadata:
+        annotations:
+          networking.gke.io/default-interface: eth0
+          networking.gke.io/interfaces: |
+            [
+              {"interfaceName":"eth0","network":"default"},
+              {"interfaceName":"eth2","network":"rdma-0"},
+              {"interfaceName":"eth3","network":"rdma-1"},
+              {"interfaceName":"eth4","network":"rdma-2"},
+              {"interfaceName":"eth5","network":"rdma-3"},
+              {"interfaceName":"eth6","network":"rdma-4"},
+              {"interfaceName":"eth7","network":"rdma-5"},
+              {"interfaceName":"eth8","network":"rdma-6"},
+              {"interfaceName":"eth9","network":"rdma-7"}
+            ]
+        labels:
+          llm-d.ai/inferenceServing: "true"
+          llm-d.ai/model: DeepSeek-R1-0528
+          llm-d.ai/role: prefill
+      spec:
+        containers:
+        - args:
+          - |-
+            if command -v apt-get >/dev/null 2>&1; then
+              export VLLM_HOME=/app/venv
+            else
+              # Assume we're using the RH midstream image
+              export VLLM_HOME=/opt/vllm
+              export HF_HUB_OFFLINE=0
+            fi
+
+            # Configure gIB
+            export PATH=/usr/local/nvidia/bin:${PATH}:/usr/local/gib/bin
+            source /usr/local/gib/scripts/set_nccl_env.sh
+            export START_RANK=$(( ${LWS_WORKER_INDEX:-0} * DP_SIZE_LOCAL ))
+
+            #################
+            # Prefill launch
+            #################
+            ${VLLM_HOME}/bin/vllm serve \
+            deepseek-ai/DeepSeek-R1-0528 \
+            --port 8000 \
+            --disable-log-requests \
+            --data-parallel-hybrid-lb \
+            --enable-dbo \
+            --kv-cache-memory=63000000000 \
+            --enable-expert-parallel \
+            --enable-eplb \
+            --num-redundant-experts $((LWS_GROUP_SIZE * DP_SIZE_LOCAL)) \
+            --eplb-window-size 1000 \
+            --eplb-step-interval 3000 \
+            --eplb-log-balancedness \
+            --tensor-parallel-size $TP_SIZE \
+            --data-parallel-size $((LWS_GROUP_SIZE * DP_SIZE_LOCAL)) \
+            --data-parallel-size-local $DP_SIZE_LOCAL \
+            --data-parallel-address ${LWS_LEADER_ADDRESS} \
+            --data-parallel-rpc-port 5555 \
+            --data-parallel-start-rank $START_RANK \
+            --trust-remote-code \
+            --kv-transfer-config '{"kv_connector":"NixlConnector", "kv_role":"kv_both"}'
+          command:
+          - /bin/bash
+          - -c
+          env:
+          - name: VLLM_ATTENTION_BACKEND
+            value: CUTLASS_MLA
+          - name: FORCE_NUM_KV_SPLITS
+            value: "1"
+          - name: DP_SIZE_LOCAL
+            value: "8"
+          - name: TP_SIZE
+            value: "1"
+          - name: TRITON_LIBCUDA_PATH
+            value: /usr/lib64
+          - name: VLLM_SKIP_P2P_CHECK
+            value: "1"
+          - name: VLLM_RANDOMIZE_DP_DUMMY_INPUTS
+            value: "1"
+          - name: VLLM_USE_DEEP_GEMM
+            value: "1"
+          - name: VLLM_ALL2ALL_BACKEND
+            value: deepep_high_throughput
+          - name: NVIDIA_GDRCOPY
+            value: disabled
+          - name: NVSHMEM_REMOTE_TRANSPORT
+            value: ibgda
+          - name: NVSHMEM_IB_ENABLE_IBGDA
+            value: "true"
+          - name: NVSHMEM_BOOTSTRAP_UID_SOCK_IFNAME
+            value: eth0
+          - name: GLOO_SOCKET_IFNAME
+            value: eth0
+          - name: NCCL_SOCKET_IFNAME
+            value: eth0
+          - name: NCCL_IB_HCA
+            value: ibp
+          - name: VLLM_LOGGING_LEVEL
+            value: INFO
+          - name: VLLM_NIXL_SIDE_CHANNEL_HOST
+            valueFrom:
+              fieldRef:
+                fieldPath: status.podIP
+          - name: CCACHE_DIR
+            value: /root/.nv/ComputeCache/.ccache
+          - name: VLLM_CACHE_ROOT
+            value: /root/.nv/ComputeCache/.vllm
+          - name: FLASHINFER_WORKSPACE_BASE
+            value: /root/.nv/ComputeCache
+          - name: TRITON_CACHE_DIR
+            value: /root/.nv/ComputeCache/.triton
+          - name: DG_JIT_CACHE_DIR
+            value: /root/.nv/ComputeCache/.deepgemm
+          - name: NVSHMEM_ENABLE_NIC_PE_MAPPING
+            value: "1"
+          - name: NVSHMEM_HCA_LIST
+            value: mlx5_0:1,mlx5_1:1,mlx5_2:1,mlx5_3:1,mlx5_4:1,mlx5_5:1,mlx5_6:1,mlx5_7:1
+          - name: TORCH_CUDA_ARCH_LIST
+            value: 9.0a 10.0
+          - name: VLLM_REPO_URL
+            value: https://github.com/smarterclayton/vllm.git
+          - name: VLLM_BRANCH
+            value: gcp_tweak_5
+          - name: DEEPEP_BRANCH
+            value: main
+          - name: DEEPEP_COMMIT
+            value: 9af0e0d0e74f3577af1979c9b9e1ac2cad0104ee
+          image: us-central1-docker.pkg.dev/conliu-gke-dev/llm-d/vllm:clayton-main_b200_gcp_nixl_06
+          imagePullPolicy: Always
+          name: vllm-worker
+          ports:
+          - containerPort: 8000
+            name: metrics
+            protocol: TCP
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+          resources:
+            limits:
+              ephemeral-storage: 64Gi
+              memory: 512Gi
+              networking.gke.io.networks/rdma-0: "1"
+              networking.gke.io.networks/rdma-0.IP: "1"
+              networking.gke.io.networks/rdma-1: "1"
+              networking.gke.io.networks/rdma-1.IP: "1"
+              networking.gke.io.networks/rdma-2: "1"
+              networking.gke.io.networks/rdma-2.IP: "1"
+              networking.gke.io.networks/rdma-3: "1"
+              networking.gke.io.networks/rdma-3.IP: "1"
+              networking.gke.io.networks/rdma-4: "1"
+              networking.gke.io.networks/rdma-4.IP: "1"
+              networking.gke.io.networks/rdma-5: "1"
+              networking.gke.io.networks/rdma-5.IP: "1"
+              networking.gke.io.networks/rdma-6: "1"
+              networking.gke.io.networks/rdma-6.IP: "1"
+              networking.gke.io.networks/rdma-7: "1"
+              networking.gke.io.networks/rdma-7.IP: "1"
+              nvidia.com/gpu: "8"
+            requests:
+              cpu: 32
+              ephemeral-storage: 64Gi
+              memory: 512Gi
+              networking.gke.io.networks/rdma-0: "1"
+              networking.gke.io.networks/rdma-0.IP: "1"
+              networking.gke.io.networks/rdma-1: "1"
+              networking.gke.io.networks/rdma-1.IP: "1"
+              networking.gke.io.networks/rdma-2: "1"
+              networking.gke.io.networks/rdma-2.IP: "1"
+              networking.gke.io.networks/rdma-3: "1"
+              networking.gke.io.networks/rdma-3.IP: "1"
+              networking.gke.io.networks/rdma-4: "1"
+              networking.gke.io.networks/rdma-4.IP: "1"
+              networking.gke.io.networks/rdma-5: "1"
+              networking.gke.io.networks/rdma-5.IP: "1"
+              networking.gke.io.networks/rdma-6: "1"
+              networking.gke.io.networks/rdma-6.IP: "1"
+              networking.gke.io.networks/rdma-7: "1"
+              networking.gke.io.networks/rdma-7.IP: "1"
+              nvidia.com/gpu: "8"
+          securityContext:
+            capabilities:
+              add:
+              - IPC_LOCK
+              - SYS_RAWIO
+            privileged: true
+            runAsGroup: 0
+            runAsUser: 0
+          volumeMounts:
+          - mountPath: /dev/shm
+            name: dshm
+          - mountPath: /root/.nv/ComputeCache
+            name: nv-compute-cache
+          - mountPath: /usr/local/gib
+            name: gib
+          - mountPath: /code
+            name: vllm
+        serviceAccountName: deepseek-r1
+        volumes:
+        - emptyDir:
+            medium: Memory
+            sizeLimit: 2Gi
+          name: dshm
+        - hostPath:
+            path: /home/kubernetes/bin/gib
+            type: ""
+          name: gib
+        - hostPath:
+            path: /mnt/stateful_partition/kube-ephemeral-ssd/shared_disk/hfcache/
+            type: DirectoryOrCreate
+          name: hf-cache
+        - hostPath:
+            path: /mnt/stateful_partition/kube-ephemeral-ssd/shared_disk/nv-compute-cache
+            type: DirectoryOrCreate
+          name: nv-compute-cache
+        - emptyDir: {}
+          name: vllm
+  replicas: 1

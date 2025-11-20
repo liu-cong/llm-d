@@ -1,0 +1,52 @@
+inferencePool:
+  apiVersion: "inference.networking.k8s.io/v1"
+  modelServers:
+    matchLabels:
+      "llm-d.ai/inferenceServing": "true"
+inferenceExtension:
+  monitoring:
+    gke:
+      enable: false
+    prometheus:
+      enable: false
+  image:
+    # both downstream infernece-scheduler and upstream epp image can support inference-scheduling example
+    ###################
+    name: epp
+    hub: us-central1-docker.pkg.dev/conliu-gke-dev/llm-d
+    tag: autotune
+    ###################
+    # name: epp
+    # hub: registry.k8s.io/gateway-api-inference-extension
+    # tag: v1.0.1
+    ###################
+    pullPolicy: Always
+  pluginsConfigFile: "default-plugins.yaml"
+  # This is the plugins configuration file.
+  pluginsCustomConfig:
+    default-plugins.yaml: |
+      apiVersion: inference.networking.x-k8s.io/v1alpha1
+      kind: EndpointPickerConfig
+      plugins:
+      - type: queue-scorer
+      - type: kv-cache-utilization-scorer
+      - type: prefix-cache-scorer
+        name: gpu-prefix-cache-scorer
+        parameters:
+          autoTune: true
+      - type: prefix-cache-scorer
+        name: cpu-prefix-cache-scorer
+        parameters:
+          autoTune: false
+          lruCapacityPerServer: 41000
+      schedulingProfiles:
+      - name: default
+        plugins:
+        - pluginRef: queue-scorer
+          weight: 2
+        - pluginRef: kv-cache-utilization-scorer
+          weight: 2
+        - pluginRef: gpu-prefix-cache-scorer
+          weight: 2
+        - pluginRef: cpu-prefix-cache-scorer
+          weight: 1

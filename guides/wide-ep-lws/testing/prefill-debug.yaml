@@ -1,0 +1,250 @@
+apiVersion: leaderworkerset.x-k8s.io/v1
+kind: LeaderWorkerSet
+metadata:
+    name: prefill-debug
+    annotations:
+      # For better performance on small EP sizes (<=32) it may be desirable to
+      # have LWS exclusively schedule onto the sub block. At the current time
+      # expert parallel deployment has not been shown to require sub block
+      # placement for peak performance and so it is disabled here to reduce
+      # failures to schedule in test and development environments.
+      #
+      # leaderworkerset.sigs.k8s.io/exclusive-topology: cloud.google.com/gce-topology-subblock
+spec:
+    replicas: 1
+    leaderWorkerTemplate:
+        size: 2
+        restartPolicy: None #RecreateGroupOnPodRestart
+
+        workerTemplate:
+            metadata:
+              labels:
+                app: vllm-deepseek-ep
+                component: vllm-deepseek-ep-prefill
+                llm-d.ai/role: prefill
+                server: vllm
+              annotations:
+                networking.gke.io/default-interface: 'eth0'
+                networking.gke.io/interfaces: |
+                  [
+                    {"interfaceName":"eth0","network":"default"},
+                    {"interfaceName":"eth2","network":"rdma-0"},
+                    {"interfaceName":"eth3","network":"rdma-1"},
+                    {"interfaceName":"eth4","network":"rdma-2"},
+                    {"interfaceName":"eth5","network":"rdma-3"},
+                    {"interfaceName":"eth6","network":"rdma-4"},
+                    {"interfaceName":"eth7","network":"rdma-5"},
+                    {"interfaceName":"eth8","network":"rdma-6"},
+                    {"interfaceName":"eth9","network":"rdma-7"}
+                  ]
+            spec:
+              # Prefer that all instances land in the same network sub block for
+              # best performance, require that we schedule to nodes where we know
+              # the topology.
+              affinity:
+                nodeAffinity:
+                  requiredDuringSchedulingIgnoredDuringExecution:
+                    nodeSelectorTerms:
+                    - matchExpressions:
+                      - key: cloud.google.com/gce-topology-subblock
+                        operator: Exists
+                podAffinity:
+                  # Sub block affinity cannot guarantee all pods in the replica
+                  # are in the same sub block, but is better than random spreading
+                  preferredDuringSchedulingIgnoredDuringExecution:
+                  - weight: 1
+                    podAffinityTerm:
+                      labelSelector:
+                        matchLabels:
+                          app: vllm-deepseek-ep
+                      matchLabelKeys:
+                      - component
+                      topologyKey: cloud.google.com/gce-topology-subblock
+              containers:
+              - name: vllm-worker
+                image: us-central1-docker.pkg.dev/conliu-gke-dev/llm-d/vllm:clayton-main_b200_cutlass_fix
+                imagePullPolicy: Always
+                workingDir: /code
+                stdin: true
+                tty: true
+                command: ["/bin/bash","-c"]
+                args:
+                  - |
+                    set -euo pipefail
+
+                    if command -v apt-get >/dev/null 2>&1; then
+                      export VLLM_HOME=/app/venv
+                    else
+                      # Assume we're using the RH midstream image
+                      export VLLM_HOME=/opt/vllm
+                      export HF_HUB_OFFLINE=0
+                    fi
+
+                    # Configure gIB (assuming v1.10 because of NCCL 2.27 for vLLM main)
+                    export PATH=/usr/local/nvidia/bin:${PATH}:/usr/local/gib/bin
+                    # source /usr/local/gib/scripts/set_nccl_env.sh
+                    env | sort
+
+                    export START_RANK=$(( ${LWS_WORKER_INDEX:-0} * DP_SIZE_LOCAL ))
+                    ${VLLM_HOME}/bin/vllm serve \
+                      ${VLLM_MODEL} \
+                      --port 8000 \
+                      --disable-log-requests \
+                      --data-parallel-hybrid-lb \
+                      --enable-dbo \
+                      --kv-cache-memory=63000000000 \
+                      --enable-expert-parallel \
+                      --enable-eplb \
+                      --num-redundant-experts $DP_SIZE \
+                      --eplb-window-size 1000 \
+                      --eplb-step-interval 3000 \
+                      --eplb-log-balancedness \
+                      --tensor-parallel-size $TP_SIZE \
+                      --data-parallel-size $DP_SIZE \
+                      --data-parallel-size-local $DP_SIZE_LOCAL \
+                      --data-parallel-address ${LWS_LEADER_ADDRESS} \
+                      --data-parallel-rpc-port 5555 \
+                      --data-parallel-start-rank $START_RANK \
+                      --kv-transfer-config '{"kv_connector":"NixlConnector", "kv_role":"kv_both"}' \
+                      --trust-remote-code
+                env:
+                  # When building packages at runtime, ensure we are compiled for hopper and blackwell
+                  - name: TORCH_CUDA_ARCH_LIST
+                    value: "9.0a 10.0"
+
+                  # NIXL Configuration
+                  - name: VLLM_NIXL_SIDE_CHANNEL_HOST
+                    valueFrom:
+                      fieldRef:
+                        fieldPath: status.podIP
+                  # Force use of TCP for NIXL disaggregation
+                  #- name: UCX_TLS
+                  #  value: "tcp,cuda_copy"
+                  #- name: UCX_NET_DEVICES
+                  #  value: "eth0"
+                  # GCP RDMA Networking config
+                  - name: NVSHMEM_REMOTE_TRANSPORT
+                    value: "ibgda"
+                  - name: NVSHMEM_IB_ENABLE_IBGDA
+                    value: "true"
+                  # GCP pairs GPU NICs to PCIe bridges (https://cloud.google.com/compute/docs/gpus/gpu-network-bandwidth#h200-gpus),
+                  # which can lead to NVSHMEM's automatic distance assignment algorithm selecting NICs
+                  # inefficiently. Instead, instruct NVSHMEM to select the NIC that aligns to the
+                  # index of the GPU on the node.
+                  - name: NVSHMEM_ENABLE_NIC_PE_MAPPING
+                    value: "1"
+                  - name: NVSHMEM_HCA_LIST
+                    value: "mlx5_0:1,mlx5_1:1,mlx5_2:1,mlx5_3:1,mlx5_4:1,mlx5_5:1,mlx5_6:1,mlx5_7:1"
+                  # We prefer to be GPU-initiated, and the GDRCopy mode requires a privileged device
+                  # to be mounted into the container. Disable to prevent a warning message during
+                  # startup.
+                  - name: NVIDIA_DISABLE_GDRCOPY
+                    value: "true"
+                  - name: NVSHMEM_BOOTSTRAP_UID_SOCK_IFNAME
+                    value: "eth0"
+                  - name: GLOO_SOCKET_IFNAME
+                    value: "eth0"
+                  # Disable GCP NCCL telemetry due to failures to upload blocking
+                  # workload start
+                  - name: NCCL_TELEMETRY_MODE
+                    value: "0"
+
+                  # The model and any specific config
+                  - name: VLLM_MODEL
+                    value: "deepseek-ai/DeepSeek-V3.1"
+                    #value: "nvidia/DeepSeek-R1-FP4"
+
+
+                  # vLLM performance tuning
+                  - name: VLLM_USE_DEEP_GEMM
+                    value: "1"
+                  # Select an all2all backend optimized for latency or throughput
+                  - name: VLLM_ALL2ALL_BACKEND
+                    # value: "naive"
+                    # value: "pplx"
+                    value: "deepep_high_throughput"
+                    # value: deepep_low_latency
+                  - name: VLLM_ATTENTION_BACKEND
+                    value: CUTLASS_MLA
+                  # Avoid known hangs with CUTLASS_MLA on B200 by forcing splits to be 1
+                  - name: FORCE_NUM_KV_SPLITS
+                    value: "1"
+                  - name: DP_SIZE
+                    value: "16"
+                  - name: TP_SIZE
+                    value: "1"
+                  - name: DP_SIZE_LOCAL
+                    value: "8"
+                  - name: VLLM_MOE_DP_CHUNK_SIZE
+                    value: "5000"
+                  - name: VLLM_RANDOMIZE_DP_DUMMY_INPUTS
+                    value: "1"
+                  - name: HF_HUB_CACHE
+                    value: /huggingface-cache
+                  - name: LD_LIBRARY_PATH
+                    value: /usr/local/nvidia/lib64
+                  - name: BASH_ENV
+                    value: /usr/local/gib/scripts/set_nccl_env.sh
+
+                terminationMessagePolicy: FallbackToLogsOnError
+                lifecycle:
+                  preStop:
+                    sleep:
+                      seconds: 1
+                readinessProbe:
+                  httpGet:
+                    path: /health
+                    port: 8000
+                    scheme: HTTP
+                  periodSeconds: 1
+                  successThreshold: 1
+                  failureThreshold: 1
+                  timeoutSeconds: 1
+
+                # may not be needed on GKE
+                securityContext:
+                  runAsUser: 0  # needed for RH image to be able to override files (runs as vllm)
+                  # NVSHMEM IBGDA requires CAP_SYS_ADMIN or nvidia.ko to have PeerMappingOverride=1 set
+                  # Since PeerMappingOverride allows workloads to potential impact each other on the
+                  # same host, privileged is no less secure.
+                  privileged: true # needed to open the host device for UAR ??
+                  capabilities:
+                    add:
+                    - "IPC_LOCK"
+                    - "SYS_RAWIO"
+                resources:
+                  limits:
+                    ephemeral-storage: 3Ti
+                    nvidia.com/gpu: "8"                 
+                  requests:
+                    cpu: 32
+                    memory: 512Gi
+                    ephemeral-storage: 3Ti
+                    nvidia.com/gpu: "8"
+                volumeMounts:
+                  - name: shm
+                    mountPath: /dev/shm
+                  # Required to access the gIB configuration for NCCL on GKE
+                  - mountPath: /usr/local/gib
+                    name: gib
+                  - name: hf-cache
+                    mountPath: /huggingface-cache
+                  
+
+              volumes:
+                # Needed for NCCL to function
+                - name: shm
+                  emptyDir:
+                    medium: Memory
+                    # Verified that we need about 2Gi to start on NCCL 2.27
+                    sizeLimit: 3Gi
+                # Necessary for gIB
+                - name: gib
+                  hostPath:
+                    path: /home/kubernetes/bin/gib
+                    type: ""
+                # Use a cache directory across pods on the SSD to avoid redownloading large models
+                - name: hf-cache
+                  hostPath:
+                    path: /mnt/stateful_partition/kube-ephemeral-ssd/shared_disk/hfcache/
+                    type: DirectoryOrCreate
