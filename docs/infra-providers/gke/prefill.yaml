@@ -29,7 +29,6 @@ spec:
         - -c
         args:
         - |
-          source /usr/local/gib/scripts/set_nccl_env.sh
           export LD_LIBRARY_PATH=/usr/local/nvidia/lib64:${LD_LIBRARY_PATH}
           vllm serve RedHatAI/Llama-3.3-70B-Instruct-FP8-dynamic \
             --port 8000 \
@@ -56,6 +55,18 @@ spec:
       #   - vllm
       #   - serve
         env:
+        - name: NCCL_NET
+          value: "IB"
+        - name: NCCL_NET_PLUGIN
+          value: "NONE"
+        # - name: NCCL_IB_HCA
+          # value: "=mlx5_0:1,mlx5_1:1"
+        - name: UCX_LOG_LEVEL
+          value: "info"
+        - name: UCX_PROTO_ENABLE
+          value: "y"
+        - name: UCX_PROTO_INFO
+          value: "y"
         - name: VLLM_NIXL_SIDE_CHANNEL_HOST
           valueFrom:
             fieldRef:
@@ -106,8 +117,6 @@ spec:
           name: torch-compile-cache
         - mountPath: /model-cache
           name: model-storage
-        - name: gib
-          mountPath: /usr/local/gib
       resourceClaims:
         - name: gpu1
           resourceClaimTemplateName: 1-gpu-nic-aligned
@@ -128,6 +137,3 @@ spec:
       - emptyDir:
           sizeLimit: 100Gi
         name: model-storage
-      - name: gib
-        hostPath:
-          path: /home/kubernetes/bin/gib

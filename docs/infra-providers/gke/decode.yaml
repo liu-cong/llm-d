@@ -29,13 +29,6 @@ spec:
         - -c
         args:
         - |
-          source /usr/local/gib/scripts/set_nccl_env.sh
-          export NCCL_IB_ADAPTIVE_ROUTING=0
-          export NCCL_IB_PCI_RELAXED_ORDERING=0
-          export NCCL_NET_GDR_LEVEL=0
-          export NCCL_IB_GID_INDEX=3
-          export NCCL_SOCKET_IFNAME="eth0"
-          export NCCL_P2P_LEVEL="PIX"
           export LD_LIBRARY_PATH=/usr/local/nvidia/lib64:${LD_LIBRARY_PATH}
           vllm serve RedHatAI/Llama-3.3-70B-Instruct-FP8-dynamic \
             --port 8200 \
@@ -66,8 +59,18 @@ spec:
       #   - vllm
       #   - serve
         env:
-        - name: NCCL_IB_HCA
-          value: "=mlx5_0:1,mlx5_1:1"
+        - name: NCCL_NET
+          value: "IB"
+        - name: NCCL_NET_PLUGIN
+          value: "NONE"
+        # - name: NCCL_IB_HCA
+          # value: "=mlx5_0:1,mlx5_1:1"
+        - name: UCX_LOG_LEVEL
+          value: "info"
+        - name: UCX_PROTO_ENABLE
+          value: "y"
+        - name: UCX_PROTO_INFO
+          value: "y"
         - name: VLLM_NIXL_SIDE_CHANNEL_HOST
           valueFrom:
             fieldRef:
@@ -75,18 +78,14 @@ spec:
               fieldPath: status.podIP
         - name: VLLM_LOGGING_LEVEL
           value: DEBUG
-        - name: NCCL_TELEMETRY_MODE
-          value: "0"
-        - name: NCCL_DEBUG
-          value: "INFO"
-        - name: NCCL_DEBUG_SUBSYS
-          value: "INIT,ENV,GRAPH,NET,COLL,TUNING"
-        - name: NCCL_DEBUG_FILE
-          value: "/model-cache/nccl_log.txt"
-        - name: DP_SIZE
-          value: "1"
-        - name: TP_SIZE
-          value: "4"
+        # - name: NCCL_TELEMETRY_MODE
+        #   value: "0"
+        # - name: NCCL_DEBUG
+        #   value: "INFO"
+        # - name: NCCL_DEBUG_SUBSYS
+        #   value: "INIT,ENV,GRAPH,NET,COLL,TUNING"
+        # # - name: NCCL_DEBUG_FILE
+        #   # value: "/model-cache/nccl_log.txt"
         - name: HF_HOME
           value: /model-cache
         - name: HF_TOKEN
@@ -97,23 +96,17 @@ spec:
         image: ghcr.io/llm-d/llm-d-cuda:v0.3.0
         imagePullPolicy: IfNotPresent
         name: vllm
-        securityContext:
-          privileged: true
-          capabilities:
-            add: [ "IPC_LOCK", "SYS_RESOURCE" ]
-          # allowPrivilegeEscalation: true
-          # runAsNonRoot: true
         ports:
         - containerPort: 8200
           name: metrics
           protocol: TCP
         resources:
           claims:
-            - name: gpu-and-nic
-            # - name: gpu1
-            # - name: gpu2
-            # - name: gpu3
-            # - name: gpu4
+            # - name: gpu-and-nic
+            - name: gpu1
+            - name: gpu2
+            - name: gpu3
+            - name: gpu4
           limits:
             cpu: "16"
             memory: 64Gi
@@ -129,20 +122,6 @@ spec:
           name: torch-compile-cache
         - mountPath: /model-cache
           name: model-storage
-        - name: gib
-          mountPath: /usr/local/gib
-          # 1. Mount the physical PCI device tree (Crucial for errno 19)
-        - name: host-sys-devices
-          mountPath: /sys/devices
-          readOnly: true
-        # 2. Mount the InfiniBand class to see device details
-        - name: host-sys-ib
-          mountPath: /sys/class/infiniband
-          readOnly: true
-        # 3. Mount the Verbs class (sometimes needed for uverbs)
-        - name: host-sys-verbs
-          mountPath: /sys/class/infiniband_verbs
-          readOnly: true
       initContainers:
       - args:
         - --port=8000
@@ -162,16 +141,16 @@ spec:
           allowPrivilegeEscalation: false
           runAsNonRoot: true
       resourceClaims:
-        - name: gpu-and-nic
-          resourceClaimTemplateName: 2-gpu-nic-aligned
-        # - name: gpu1
-        #   resourceClaimTemplateName: 1-gpu-nic-aligned
-        # - name: gpu2
-        #   resourceClaimTemplateName: 1-gpu-nic-aligned
-        # - name: gpu3
-        #   resourceClaimTemplateName: 1-gpu-nic-aligned
-        # - name: gpu4
-        #   resourceClaimTemplateName: 1-gpu-nic-aligned
+        # - name: gpu-and-nic
+        #   resourceClaimTemplateName: 2-gpu-nic-aligned
+        - name: gpu1
+          resourceClaimTemplateName: 1-gpu-nic-aligned
+        - name: gpu2
+          resourceClaimTemplateName: 1-gpu-nic-aligned
+        - name: gpu3
+          resourceClaimTemplateName: 1-gpu-nic-aligned
+        - name: gpu4
+          resourceClaimTemplateName: 1-gpu-nic-aligned
       tolerations:
             - key: "nvidia.com/gpu"
               operator: "Equal"
@@ -189,9 +168,6 @@ spec:
       - emptyDir:
           sizeLimit: 100Gi
         name: model-storage
-      - name: gib
-        hostPath:
-          path: /home/kubernetes/bin/gib
       - name: host-sys-devices
         hostPath:
           path: /sys/devices

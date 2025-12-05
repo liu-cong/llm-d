@@ -68,8 +68,6 @@ spec:
           deviceClassName: mrdma.google.com
           allocationMode: ExactCount
           count: 8
-      constraints:
-      - matchAttribute: "resource.kubernetes.io/pcieRoot"
 
 ---
 apiVersion: resource.k8s.io/v1
