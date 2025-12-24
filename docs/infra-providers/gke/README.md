@@ -7,7 +7,7 @@ This document covers configuring GKE clusters for running high performance LLM i
 llm-d on GKE is tested with the following configurations:
 
   * Machine types: A3, A4, ct5p, ct5lp, ct6e
-  * Versions: GKE 1.33.4+
+  * Versions: GKE 1.33.4+ (for GKE Inference Gateway GA support), 1.34.1-gke.2037000+ (for GKE managed DRA support)
 
 For the well lit paths, we specifically recommend the following machine types:
 
@@ -33,17 +33,70 @@ For all TPU machines, follow the [TPUs in GKE documentation](https://cloud.googl
 
 We recommend enabling Google Managed Prometheus and [automatic application monitoring](https://cloud.google.com/kubernetes-engine/docs/how-to/configure-automatic-application-monitoring) to enable automatic metrics collection and dashboards for vLLM deployed on the cluster.
 
+### DRA
+
+DRA enables fine-grained resource allocation for GPU/TPU and RDMA resources on GKE. It is recommended to use DRA for inference workloads that require high performance RDMA networking such ad P/D disaggregation and wide expert parallelism.
+
+Follow the steps below to enable DRA for your cluster/nodepool:
+
+* Install [GPU/TPU DRA driver](https://docs.cloud.google.com/kubernetes-engine/docs/how-to/set-up-dra#install-dra-driver) on your GKE cluster.
+
+* Enable [DRANET driver](https://docs.cloud.google.com/kubernetes-engine/docs/how-to/allocate-network-resources-dra#enable-dra-driver-gpu) on a GKE nodepool.
+
+### Sample Commands
+
+```
+export CLUSTER_NAME="conliu-test"
+export CLUSTER_VERSION="1.34.1-gke.2037000"
+export REGION="europe-west1"
+export ZONE="europe-west1-b"
+export PROJECT="conliu-gke-dev"
+export NODE_COUNT=2
+
+# Use the following for h200
+export NODE_POOL_NAME="h200-2"
+export MACHINE_TYPE="a3-ultragpu-8g"
+export ACCELERATOR_CONFIG="type=nvidia-h200-141gb,count=8,gpu-driver-version=latest"
+
+gcloud container clusters create ${CLUSTER_NAME} \
+    --enable-dataplane-v2 \
+    --region=${REGION} \
+    --project=${PROJECT} \
+    --cluster-version=${CLUSTER_VERSION}
+
+gcloud beta container node-pools create ${NODE_POOL_NAME} \
+  --region=${REGION} \
+  --cluster=${CLUSTER_NAME} \
+  --node-locations=${ZONE} \
+  --accelerator ${ACCELERATOR_CONFIG} \
+  --machine-type=${MACHINE_TYPE} \
+  --num-nodes=${NODE_COUNT} \
+  --accelerator-network-profile=auto \
+  --node-labels=cloud.google.com/gke-networking-dra-driver=true,nvidia.com/gpu.present=true
+  --spot
+```
+
 ## Workload Configuration
 
 ### GPUs
+
+#### Tolerations
+
+When using DRA to allocate GPU resources, add the following tolerations to your workload pods so the pods can be scheduled on nodes with GPUs.
+
+```
+tolerations:
+  - key: "nvidia.com/gpu"
+    operator: "Equal"
+    value: "present"
+    effect: "NoSchedule"
+```
 
 #### Configuring support for RDMA on GKE workload pods
 
 GCP provides CX-7 support on A3 Ultra+ GPU hosts via RoCE.
 
-Model servers that need to use fast internode networking for P/D disaggregation or wide expert parallelism will need to request RDMA resources on your workload pods. The cluster creation guide describes the required changes to a pod to access the RDMA devices (e.g. [for A3 Ultra / A4](https://cloud.google.com/ai-hypercomputer/docs/create/gke-ai-hypercompute-custom#configure-pod-manifests-rdma)).
-
-In addition, expert parallel deployments leveraging DeepEP with NVIDIA NVSHMEM will need to run their pods with `privileged: true` in order to perform GPU-initiated RDMA connections, or enable `PeerMappingOverride=1` in your NVIDIA kernel settings with a [manual GPU driver installation](https://cloud.google.com/kubernetes-engine/docs/how-to/gpus#installing_drivers).
+Expert parallel deployments leveraging DeepEP with NVIDIA NVSHMEM will need to run their pods with `privileged: true` in order to perform GPU-initiated RDMA connections, or enable `PeerMappingOverride=1` in your NVIDIA kernel settings with a [manual GPU driver installation](https://cloud.google.com/kubernetes-engine/docs/how-to/gpus#installing_drivers).
 
 **_NOTE:_** While GDRCopy allows CPU-initiated RDMA connections, at the current time we have not measured a benefit to this configuration and instead recommend the default GPU-initiated setting. You can disable the GDRCopy warning in NVSHMEM initialization by setting the `NVSHMEM_DISABLE_GDRCOPY=1` environment variable on your container.
 
