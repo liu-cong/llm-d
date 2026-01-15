@@ -1,0 +1,5 @@
+apiVersion: v2
+name: sweep-patches
+description: Kustomize patches for benchmark parameter sweeps
+type: application
+version: 0.1.0

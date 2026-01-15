@@ -1,0 +1,9 @@
+name: sweep-dp4-tp2
+replicas: 2
+lwsSize: 2
+dpSizeLocal: 4
+tpSize: 2
+prefill:
+  all2allBackend: deepep_high_throughput
+decode:
+  all2allBackend: deepep_low_latency

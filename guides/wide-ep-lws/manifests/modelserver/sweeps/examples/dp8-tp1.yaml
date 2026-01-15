@@ -1,0 +1,9 @@
+name: sweep-dp8-tp1
+replicas: 1
+lwsSize: 2
+dpSizeLocal: 8
+tpSize: 1
+prefill:
+  all2allBackend: deepep_high_throughput
+decode:
+  all2allBackend: deepep_low_latency

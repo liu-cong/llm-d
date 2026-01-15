@@ -1,0 +1,26 @@
+# Default values for benchmark sweeps
+
+# Deployment Naming
+# Change this to run multiple named sweeps in parallel (e.g. sweep-1, sweep-2)
+name: wide-ep-llm-d
+
+# Cluster Sizing
+replicas: 1
+lwsSize: 2
+
+# Parallelism
+dpSizeLocal: 8
+tpSize: 1
+
+# Backends
+prefill:
+  all2allBackend: deepep_high_throughput
+  extraEnv: []  # List of {name: "FOO", value: "BAR"}
+
+decode:
+  all2allBackend: deepep_low_latency
+  extraEnv: []
+
+# Feature Flags
+enablePrefill: true
+enableDecode: true
