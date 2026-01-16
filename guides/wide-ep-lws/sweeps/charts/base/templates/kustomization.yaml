@@ -1,0 +1,85 @@
+{{- /*
+Sweep Patches - Direct Kustomization Generation
+Renders a Kustomization object directly, which Helm accepts as valid YAML.
+*/ -}}
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+{{- range .Values.resources }}
+  - {{ . }}
+{{- end }}
+patches:
+  # ============================================================================
+  # STRATEGIC MERGE EXAMPLE (Labels/Annotations)
+  # ============================================================================
+  - target:
+      kind: LeaderWorkerSet
+    patch: |
+      apiVersion: leaderworkerset.x-k8s.io/v1
+      kind: LeaderWorkerSet
+      metadata:
+        name: ignored # Target resolved by 'target' field above
+        labels:
+          llm-d.ai/sweep-name: {{ .Values.name }}
+          llm-d.ai/managed-by: helm-sweep-v5
+  # ============================================================================
+  # PREFILL
+  # ============================================================================
+  {{- if .Values.enablePrefill }}
+  - target:
+      kind: LeaderWorkerSet
+      name: wide-ep-llm-d-prefill
+    patch: |-
+      - op: replace
+        path: /metadata/name
+        value: {{ .Values.name }}-prefill
+      - op: replace
+        path: /spec/replicas
+        value: {{ .Values.replicas }}
+      - op: replace
+        path: /spec/leaderWorkerTemplate/size
+        value: {{ .Values.lwsSize }}
+  
+  # Env Var Patch (JSON Replace)
+  - target:
+      kind: LeaderWorkerSet
+      name: wide-ep-llm-d-prefill
+    patch: |-
+      - op: replace
+        path: /spec/leaderWorkerTemplate/workerTemplate/spec/containers/0/env/0/value
+        value: "{{ .Values.dpSizeLocal }}"
+      - op: replace
+        path: /spec/leaderWorkerTemplate/workerTemplate/spec/containers/0/env/1/value
+        value: "{{ .Values.tpSize }}"
+      - op: replace
+        path: /spec/leaderWorkerTemplate/workerTemplate/spec/containers/0/env/6/value
+        value: "{{ .Values.prefill.all2allBackend }}"
+  {{- end }}
+
+  # ============================================================================
+  # DECODE
+  # ============================================================================
+  {{- if .Values.enableDecode }}
+  - target:
+      kind: LeaderWorkerSet
+      name: wide-ep-llm-d-decode
+    patch: |-
+      - op: replace
+        path: /metadata/name
+        value: {{ .Values.name }}-decode
+      - op: replace
+        path: /spec/replicas
+        value: {{ .Values.replicas }}
+      - op: replace
+        path: /spec/leaderWorkerTemplate/size
+        value: {{ .Values.lwsSize }}
+      - op: replace
+        path: /spec/leaderWorkerTemplate/workerTemplate/spec/containers/0/env/1/value
+        value: "{{ .Values.dpSizeLocal }}"
+      - op: replace
+        path: /spec/leaderWorkerTemplate/workerTemplate/spec/containers/0/env/2/value
+        value: "{{ .Values.tpSize }}"
+      - op: replace
+        path: /spec/leaderWorkerTemplate/workerTemplate/spec/containers/0/env/7/value
+        value: "{{ .Values.decode.all2allBackend }}"
+  {{- end }}

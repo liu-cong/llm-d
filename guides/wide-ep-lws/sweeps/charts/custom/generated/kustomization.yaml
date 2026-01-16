@@ -1,0 +1,17 @@
+---
+# Source: custom-sweep/templates/kustomization.yaml
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../base/generated
+
+patches:
+  - target:
+      kind: LeaderWorkerSet
+    patch: |
+      apiVersion: leaderworkerset.x-k8s.io/v1
+      kind: LeaderWorkerSet
+      metadata:
+        name: ignored
+        annotations:
+          sweep.ai/custom-id: custom-sweep-v1

@@ -24,3 +24,7 @@ decode:
 # Feature Flags
 enablePrefill: true
 enableDecode: true
+
+# This is relative to the charts/base/generated directory
+resources:
+  - ../../../../manifests/modelserver/coreweave

@@ -1,0 +1,6 @@
+# Resources to patch (pointing to base sweep output)
+resources:
+  - ../../base/generated
+
+# Custom parameters
+customAnnotation: "custom-sweep-v1"

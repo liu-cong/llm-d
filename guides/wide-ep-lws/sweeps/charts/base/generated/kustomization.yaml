@@ -1,0 +1,77 @@
+---
+# Source: sweep-patches/templates/kustomization.yaml
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../../../manifests/modelserver/coreweave
+patches:
+  # ============================================================================
+  # STRATEGIC MERGE EXAMPLE (Labels/Annotations)
+  # ============================================================================
+  - target:
+      kind: LeaderWorkerSet
+    patch: |
+      apiVersion: leaderworkerset.x-k8s.io/v1
+      kind: LeaderWorkerSet
+      metadata:
+        name: ignored # Target resolved by 'target' field above
+        labels:
+          llm-d.ai/sweep-name: wide-ep-llm-d
+          llm-d.ai/managed-by: helm-sweep-v5
+  # ============================================================================
+  # PREFILL
+  # ============================================================================
+  - target:
+      kind: LeaderWorkerSet
+      name: wide-ep-llm-d-prefill
+    patch: |-
+      - op: replace
+        path: /metadata/name
+        value: wide-ep-llm-d-prefill
+      - op: replace
+        path: /spec/replicas
+        value: 1
+      - op: replace
+        path: /spec/leaderWorkerTemplate/size
+        value: 2
+  
+  # Env Var Patch (JSON Replace)
+  - target:
+      kind: LeaderWorkerSet
+      name: wide-ep-llm-d-prefill
+    patch: |-
+      - op: replace
+        path: /spec/leaderWorkerTemplate/workerTemplate/spec/containers/0/env/0/value
+        value: "8"
+      - op: replace
+        path: /spec/leaderWorkerTemplate/workerTemplate/spec/containers/0/env/1/value
+        value: "1"
+      - op: replace
+        path: /spec/leaderWorkerTemplate/workerTemplate/spec/containers/0/env/6/value
+        value: "deepep_high_throughput"
+
+  # ============================================================================
+  # DECODE
+  # ============================================================================
+  - target:
+      kind: LeaderWorkerSet
+      name: wide-ep-llm-d-decode
+    patch: |-
+      - op: replace
+        path: /metadata/name
+        value: wide-ep-llm-d-decode
+      - op: replace
+        path: /spec/replicas
+        value: 1
+      - op: replace
+        path: /spec/leaderWorkerTemplate/size
+        value: 2
+      - op: replace
+        path: /spec/leaderWorkerTemplate/workerTemplate/spec/containers/0/env/1/value
+        value: "8"
+      - op: replace
+        path: /spec/leaderWorkerTemplate/workerTemplate/spec/containers/0/env/2/value
+        value: "1"
+      - op: replace
+        path: /spec/leaderWorkerTemplate/workerTemplate/spec/containers/0/env/7/value
+        value: "deepep_low_latency"

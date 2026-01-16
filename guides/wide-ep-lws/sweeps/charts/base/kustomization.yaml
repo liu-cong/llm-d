@@ -1,29 +1,26 @@
-{{- /*
-Sweep Patches - Direct Kustomization Generation
-Renders a Kustomization object directly, which Helm accepts as valid YAML.
-*/ -}}
+---
+# Source: sweep-patches/templates/kustomization.yaml
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
-  - base-overlay
+  - ../../coreweave
 patches:
   # ============================================================================
   # PREFILL
   # ============================================================================
-  {{- if .Values.enablePrefill }}
   - target:
       kind: LeaderWorkerSet
       name: wide-ep-llm-d-prefill
     patch: |-
       - op: replace
         path: /metadata/name
-        value: {{ .Values.name }}-prefill
+        value: wide-ep-llm-d-prefill
       - op: replace
         path: /spec/replicas
-        value: {{ .Values.replicas }}
+        value: 1
       - op: replace
         path: /spec/leaderWorkerTemplate/size
-        value: {{ .Values.lwsSize }}
+        value: 2
   
   # Env Var Patch (Strategic Merge)
   - target:
@@ -35,46 +32,40 @@ patches:
       metadata:
         name: wide-ep-llm-d-prefill
         labels:
-          llm-d.ai/deployment: {{ .Values.name }}
+          llm-d.ai/deployment: wide-ep-llm-d
       spec:
         leaderWorkerTemplate:
           workerTemplate:
             metadata:
               labels:
-                llm-d.ai/deployment: {{ .Values.name }}
+                llm-d.ai/deployment: wide-ep-llm-d
             spec:
               containers:
               - name: vllm
                 env:
                 - name: DP_SIZE_LOCAL
-                  value: "{{ .Values.dpSizeLocal }}"
+                  value: "8"
                 - name: TP_SIZE
-                  value: "{{ .Values.tpSize }}"
+                  value: "1"
                 - name: VLLM_ALL2ALL_BACKEND
-                  value: "{{ .Values.prefill.all2allBackend }}"
-                {{- range .Values.prefill.extraEnv }}
-                - name: {{ .name }}
-                  value: "{{ .value }}"
-                {{- end }}
-  {{- end }}
+                  value: "deepep_high_throughput"
 
   # ============================================================================
   # DECODE
   # ============================================================================
-  {{- if .Values.enableDecode }}
   - target:
       kind: LeaderWorkerSet
       name: wide-ep-llm-d-decode
     patch: |-
       - op: replace
         path: /metadata/name
-        value: {{ .Values.name }}-decode
+        value: wide-ep-llm-d-decode
       - op: replace
         path: /spec/replicas
-        value: {{ .Values.replicas }}
+        value: 1
       - op: replace
         path: /spec/leaderWorkerTemplate/size
-        value: {{ .Values.lwsSize }}
+        value: 2
 
   # Env Var Patch (Strategic Merge)
   - target:
@@ -86,25 +77,20 @@ patches:
       metadata:
         name: wide-ep-llm-d-decode
         labels:
-          llm-d.ai/deployment: {{ .Values.name }}
+          llm-d.ai/deployment: wide-ep-llm-d
       spec:
         leaderWorkerTemplate:
           workerTemplate:
             metadata:
               labels:
-                llm-d.ai/deployment: {{ .Values.name }}
+                llm-d.ai/deployment: wide-ep-llm-d
             spec:
               containers:
               - name: vllm
                 env:
                 - name: DP_SIZE_LOCAL
-                  value: "{{ .Values.dpSizeLocal }}"
+                  value: "8"
                 - name: TP_SIZE
-                  value: "{{ .Values.tpSize }}"
+                  value: "1"
                 - name: VLLM_ALL2ALL_BACKEND
-                  value: "{{ .Values.decode.all2allBackend }}"
-                {{- range .Values.decode.extraEnv }}
-                - name: {{ .name }}
-                  value: "{{ .value }}"
-                {{- end }}
-  {{- end }}
+                  value: "deepep_low_latency"
