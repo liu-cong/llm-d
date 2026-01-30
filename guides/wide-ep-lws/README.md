@@ -215,9 +215,10 @@ The `GATEWAY_IP` environment variable will be used in the [benchmark template](.
 
 ### Results
 
-![alt text](benchmark-result.png)
+<img src="throughput_vs_qps.png" width="900" alt="Throughput vs QPS">
+<img src="throughput_vs_latency.png" width="300" alt="Throughput vs Latency">
 
-At request rate 250, we achieved the following performance:
+At request rate 250, we achieved the max throughput:
 
 ```
 "throughput": {
