@@ -126,7 +126,7 @@ jobs:
 
       - name: Deploy model service and GIE with Helmfile
         run: |
-          cd guides/inference-scheduling
+          cd guides/well-lit-paths/inference-scheduling
           helmfile apply -e ${{ matrix.accelerator.helmfile_env }} \
             --set "gateway.service.type=LoadBalancer" \
             --skip-schema-validation \
@@ -135,7 +135,7 @@ jobs:
 
       - name: Deploy HTTPRoute
         run: |
-          cd guides/inference-scheduling
+          cd guides/well-lit-paths/inference-scheduling
           echo "Deploying HTTPRoute..."
           kubectl apply -f httproute.gke.yaml -n ${NAMESPACE} | tee ~/inference-scheduling-deployment.log
           echo "---------------------------------------" >> ~/inference-scheduling-deployment.log
@@ -234,6 +234,6 @@ jobs:
       - name: Cleanup deployment
         if: always()
         run: |
-          cd guides/inference-scheduling
+          cd guides/well-lit-paths/inference-scheduling
           helmfile destroy -e ${{ matrix.accelerator.helmfile_env }}
           kubectl delete -f httproute.gke.yaml -n ${NAMESPACE}
