@@ -46,7 +46,7 @@ jobs:
       # Slim transform: reduce model to Qwen3-0.6B, 1 GPU per pod, reduce memory
       pre_deploy_script: |
         echo "Applying pd-disaggregation slim transforms..."
-        cd guides/pd-disaggregation
+        cd guides/well-lit-paths/pd-disaggregation
         yq e '.modelArtifacts.uri = "hf://Qwen/Qwen3-0.6B"' -i ms-pd/values.yaml
         yq e '.routing.modelName = "Qwen/Qwen3-0.6B"' -i ms-pd/values.yaml
         yq e 'del(.decode.containers[0].args[] | select(. == "--max-model-len" or . == "32000"))' -i ms-pd/values.yaml

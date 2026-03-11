@@ -103,20 +103,20 @@ jobs:
           # Transform ms-pd/values.yaml to a scaled-down deployment
 
           # Set Prefill to 1 GPU
-          yq e '.prefill.replicas = 1' -i guides/pd-disaggregation/ms-pd/values.yaml
+          yq e '.prefill.replicas = 1' -i guides/well-lit-paths/pd-disaggregation/ms-pd/values.yaml
 
           # Reduce model length to 3200
-          yq e '.decode.containers[].args |= ( (.. | select(. == "--max-model-len") | key) as $idx | .[$idx + 1] = "3200" )' -i guides/pd-disaggregation/ms-pd/values.yaml
-          yq e '.prefill.containers[].args |= ( (.. | select(. == "--max-model-len") | key) as $idx | .[$idx + 1] = "3200" )' -i guides/pd-disaggregation/ms-pd/values.yaml
+          yq e '.decode.containers[].args |= ( (.. | select(. == "--max-model-len") | key) as $idx | .[$idx + 1] = "3200" )' -i guides/well-lit-paths/pd-disaggregation/ms-pd/values.yaml
+          yq e '.prefill.containers[].args |= ( (.. | select(. == "--max-model-len") | key) as $idx | .[$idx + 1] = "3200" )' -i guides/well-lit-paths/pd-disaggregation/ms-pd/values.yaml
 
           # Verify the slimmed down values
           echo "📋 Verifying transformation results..."
           echo "Replicas in ms-pd prefill:"
-          yq e '.prefill.replicas' guides/pd-disaggregation/ms-pd/values.yaml
+          yq e '.prefill.replicas' guides/well-lit-paths/pd-disaggregation/ms-pd/values.yaml
 
           # Validate YAML syntax
           echo "Validating YAML syntax..."
-          yq eval '.' guides/pd-disaggregation/ms-pd/values.yaml > /dev/null && echo "ms-pd/values.yaml: Valid"
+          yq eval '.' guides/well-lit-paths/pd-disaggregation/ms-pd/values.yaml > /dev/null && echo "ms-pd/values.yaml: Valid"
           echo "✅ All YAML files are valid"
 
           # Display complete transformed files for debugging
@@ -125,12 +125,12 @@ jobs:
           echo ""
           echo "ms-pd/values.yaml (transformed):"
           echo "---"
-          cat guides/pd-disaggregation/ms-pd/values.yaml
+          cat guides/well-lit-paths/pd-disaggregation/ms-pd/values.yaml
           echo "---"
           echo ""
           echo "gaie-pd/values.yaml:"
           echo "---"
-          cat guides/pd-disaggregation/gaie-pd/values.yaml
+          cat guides/well-lit-paths/pd-disaggregation/gaie-pd/values.yaml
           echo "---"
           echo ""
           echo "=== End of values files output ==="
@@ -153,7 +153,7 @@ jobs:
 
       - name: Deploy model service and GIE with Helmfile
         run: |
-          cd guides/pd-disaggregation
+          cd guides/well-lit-paths/pd-disaggregation
           helmfile apply -e ${GATEWAY_TYPE} \
             --set "gateway.service.type=LoadBalancer" \
             --skip-schema-validation \
@@ -162,7 +162,7 @@ jobs:
 
       - name: Deploy HTTPRoute
         run: |
-          cd guides/pd-disaggregation
+          cd guides/well-lit-paths/pd-disaggregation
           echo "Deploying HTTPRoute..."
           kubectl apply -f httproute.gke.yaml -n ${NAMESPACE} | tee ~/pd-disaggregation-deployment.log
           echo "---------------------------------------" >> ~/pd-disaggregation-deployment.log
@@ -292,6 +292,6 @@ jobs:
       - name: Cleanup deployment
         if: always()
         run: |
-          cd guides/pd-disaggregation
+          cd guides/well-lit-paths/pd-disaggregation
           helmfile destroy
           kubectl delete -f httproute.gke.yaml -n ${NAMESPACE}
