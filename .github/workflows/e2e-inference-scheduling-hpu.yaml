@@ -5,9 +5,9 @@ on:
     - cron: '0 4 * * *'  # 4:00 AM UTC daily
   pull_request:
     paths:
-      - 'guides/inference-scheduling/ms-inference-scheduling/values-hpu.yaml'
-      - 'guides/inference-scheduling/gaie-inference-scheduling/**'
-      - 'guides/inference-scheduling/helmfile.yaml.gotmpl'
+      - 'guides/well-lit-paths/inference-scheduling/ms-inference-scheduling/values-hpu.yaml'
+      - 'guides/well-lit-paths/inference-scheduling/gaie-inference-scheduling/**'
+      - 'guides/well-lit-paths/inference-scheduling/helmfile.yaml.gotmpl'
       - '.github/workflows/e2e-inference-scheduling-hpu.yaml'
   workflow_dispatch:
     inputs:
@@ -92,7 +92,7 @@ jobs:
 
       - name: Deploy guide
         run: |
-          cd guides/inference-scheduling
+          cd guides/well-lit-paths/inference-scheduling
           echo "Starting helmfile deployment for hpu environment..."
           helmfile apply -e hpu -n "${NAMESPACE}" 2>&1 \
             | tee ~/inference-scheduling-hpu-deployment.log
@@ -123,7 +123,7 @@ jobs:
 
       - name: Deploy HTTPRoute
         run: |
-          cd guides/inference-scheduling
+          cd guides/well-lit-paths/inference-scheduling
           kubectl apply -f httproute.yaml -n "${NAMESPACE}"
 
       - name: Wait for all pods to be ready
@@ -209,6 +209,6 @@ jobs:
       - name: Cleanup deployment
         if: always()
         run: |
-          cd guides/inference-scheduling
+          cd guides/well-lit-paths/inference-scheduling
           helmfile destroy -e hpu -n "${NAMESPACE}"
           kubectl delete ns ${NAMESPACE}

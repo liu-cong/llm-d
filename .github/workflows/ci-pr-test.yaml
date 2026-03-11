@@ -62,8 +62,8 @@ jobs:
               - .github/workflows/e2e-inference-scheduling-xpu.yaml
               - docker/Dockerfile.xpu
               - guides/**/values_xpu.yaml
-              - guides/inference-scheduling/ms-inference-scheduling/values_xpu.yaml
-              - guides/inference-scheduling/helmfile.yaml.gotmpl
+              - guides/well-lit-paths/inference-scheduling/ms-inference-scheduling/values_xpu.yaml
+              - guides/well-lit-paths/inference-scheduling/helmfile.yaml.gotmpl
             xpu-pd-disaggregation:
               - .github/workflows/ci-pr-test.yaml
               - .github/workflows/e2e-pd-xpu.yaml

@@ -122,7 +122,7 @@ jobs:
 
       - name: Deploy guide
         run: |
-          cd guides/inference-scheduling
+          cd guides/well-lit-paths/inference-scheduling
           helmfile apply -e xpu -n "${NAMESPACE}" ${HELM_SET_IMAGE} \
             --skip-schema-validation \
             | tee ~/inference-scheduling-deployment.log
@@ -130,7 +130,7 @@ jobs:
 
       - name: Deploy HTTPRoute
         run: |
-          cd guides/inference-scheduling
+          cd guides/well-lit-paths/inference-scheduling
           echo "Deploying HTTPRoute with RELEASE_NAME_POSTFIX=${RELEASE_NAME_POSTFIX}..."
           # Create a temporary HTTPRoute file with the correct names
           sed -e "s/infra-inference-scheduling-inference-gateway/${INFRA_RELEASE_NAME}-inference-gateway/g" \
@@ -259,6 +259,6 @@ jobs:
       - name: Cleanup deployment
         if: always()
         run: |
-          cd guides/inference-scheduling
+          cd guides/well-lit-paths/inference-scheduling
           helmfile destroy -e xpu -n "${NAMESPACE}"
           kubectl delete ns ${NAMESPACE}
