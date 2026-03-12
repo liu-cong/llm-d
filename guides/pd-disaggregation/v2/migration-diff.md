@@ -1,379 +1,380 @@
 # Migration Semantic Equivalence Summary - pd-disaggregation
 
-This document proves that the new hybrid architecture (Helm-based InferencePool + Kustomize-based vLLM) is semantically equivalent to the legacy Helm-only approach.
+This document proves that the new hybrid architecture is semantically equivalent to the legacy Helm-only approach.
 
 ## Components Compared
 
 1. **InferencePool**:
-   - Legacy: `helm template gaie-pd guides/pd-disaggregation/gaie-pd`
-   - v2: `helm template llm-d-infpool inferencepool -f v2/manifests/inferencepool.values.yaml`
+   - Legacy: `helm template gaie-pd gaie-chart -f v2/manifests/inferencepool.values.yaml`
+   - v2: `helm template llm-d-infpool gaie-chart -f v2/manifests/inferencepool.values.yaml`
 
 2. **Model Server (vLLM)**:
-   - Legacy: `helm template ms-pd guides/pd-disaggregation/ms-pd`
+   - Legacy: `helm template ms-pd ms-chart -f ms-pd/values.yaml`
    - v2: `kustomize build v2/manifests/vllm/base`
 
-## Diff Content
+## Diff Content (Normalized)
 
-Expected differences include:
-- Release names (`gaie-pd` vs `llm-d-infpool`, `ms-pd` vs `vllm-pd`)
-- Chart metadata labels
-- Removal of some Helm-specific template noise
+Metadata like Helm labels and release names have been normalized for comparison.
 
 ```diff
---- /tmp/legacy_render.yaml	2026-03-11 20:33:33
-+++ /tmp/v2_render.yaml	2026-03-11 20:33:33
-@@ -1,2 +1,352 @@
-+---
-+# Source: inferencepool/templates/rbac.yaml
-+apiVersion: v1
-+kind: ServiceAccount
-+metadata:
-+  name: llm-d-infpool-epp
-+  namespace: llm-d-pd
-+  labels:
-+    app.kubernetes.io/name: llm-d-infpool-epp
-+    app.kubernetes.io/version: "0.0.0"
-+---
-+# Source: inferencepool/templates/inferenceextension.yaml
-+apiVersion: v1
-+kind: Secret
-+metadata:
-+  name: pd-gateway-sa-metrics-reader-secret
-+  namespace: llm-d-pd
-+  labels:
-+    app.kubernetes.io/name: llm-d-infpool-epp
-+    app.kubernetes.io/version: "0.0.0"
-+  annotations:
-+    kubernetes.io/service-account.name: llm-d-infpool-epp
-+type: kubernetes.io/service-account-token
-+---
-+# Source: inferencepool/templates/inferenceextension.yaml
-+apiVersion: v1
-+kind: ConfigMap
-+metadata:
-+  name: llm-d-infpool-epp
-+  namespace: llm-d-pd
-+data:
-+  default-plugins.yaml: |
-+    apiVersion: inference.networking.x-k8s.io/v1alpha1
-+    kind: EndpointPickerConfig
-+    plugins:
-+    - type: queue-scorer
-+    - type: kv-cache-utilization-scorer
-+    - type: prefix-cache-scorer
-+    schedulingProfiles:
-+    - name: default
-+      plugins:
-+      - pluginRef: queue-scorer
-+        weight: 2
-+      - pluginRef: kv-cache-utilization-scorer
-+        weight: 2
-+      - pluginRef: prefix-cache-scorer
-+        weight: 3
-+  pd-config.yaml: |
-+    # ALWAYS DO PD IN THIS EXAMPLE (THRESHOLD 0)
-+    apiVersion: inference.networking.x-k8s.io/v1alpha1
-+    kind: EndpointPickerConfig
-+    featureGates:
-+    - prepareDataPlugins
-+    plugins:
-+    - type: prefill-header-handler
-+    - type: prefix-cache-scorer
-+      parameters:
-+        maxPrefixBlocksToMatch: 256
-+        lruCapacityPerServer: 31250
-+    - type: queue-scorer
-+    - type: prefill-filter
-+    - type: decode-filter
-+    - type: max-score-picker
-+    - type: prefix-based-pd-decider
-+      parameters:
-+        nonCachedTokens: 16
-+    - type: pd-profile-handler
-+      parameters:
-+        primaryPort: 0
-+        deciderPluginName: prefix-based-pd-decider
-+    schedulingProfiles:
-+    - name: prefill
-+      plugins:
-+      - pluginRef: prefill-filter
-+      - pluginRef: max-score-picker
-+      - pluginRef: prefix-cache-scorer
-+        weight: 2
-+      - pluginRef: queue-scorer
-+        weight: 1
-+    - name: decode
-+      plugins:
-+      - pluginRef: decode-filter
-+      - pluginRef: max-score-picker
-+      - pluginRef: prefix-cache-scorer
-+        weight: 2
-+      - pluginRef: queue-scorer
-+        weight: 1
-+    # All profiles using max score picker by default
-+---
-+# Source: inferencepool/templates/rbac.yaml
-+kind: ClusterRole
-+apiVersion: rbac.authorization.k8s.io/v1
-+metadata:
-+  name: "llm-d-infpool-llm-d-pd-epp"
-+  labels:
-+    app.kubernetes.io/name: llm-d-infpool-epp
-+    app.kubernetes.io/version: "0.0.0"
-+rules:
-+- apiGroups:
-+    - authentication.k8s.io
-+  resources:
-+    - tokenreviews
-+  verbs:
-+    - create
-+- apiGroups:
-+    - authorization.k8s.io
-+  resources:
-+    - subjectaccessreviews
-+  verbs:
-+    - create
-+- nonResourceURLs:
-+    - "/metrics"
-+  verbs:
-+    - get
-+---
-+# Source: inferencepool/templates/rbac.yaml
-+kind: ClusterRoleBinding
-+apiVersion: rbac.authorization.k8s.io/v1
-+metadata:
-+  name: "llm-d-infpool-llm-d-pd-epp"
-+subjects:
-+- kind: ServiceAccount
-+  name: llm-d-infpool-epp
-+  namespace: llm-d-pd
-+roleRef:
-+  apiGroup: rbac.authorization.k8s.io
-+  kind: ClusterRole
-+  name: "llm-d-infpool-llm-d-pd-epp"
-+---
-+# Source: inferencepool/templates/rbac.yaml
-+apiVersion: rbac.authorization.k8s.io/v1
-+kind: Role
-+metadata:
-+  name: llm-d-infpool-epp-non-sa
-+  namespace: llm-d-pd
-+  labels:
-+    app.kubernetes.io/name: llm-d-infpool-epp
-+    app.kubernetes.io/version: "0.0.0"
-+rules:
-+- apiGroups: ["inference.networking.x-k8s.io"]
-+  resources: ["inferenceobjectives", "inferencemodelrewrites"]
-+  verbs: ["get", "watch", "list"]
-+- apiGroups: ["inference.networking.k8s.io"]
-+  resources: ["inferencepools"]
-+  verbs: ["get", "watch", "list"]
-+---
-+# Source: inferencepool/templates/rbac.yaml
-+apiVersion: rbac.authorization.k8s.io/v1
-+kind: Role
-+metadata:
-+  name: llm-d-infpool-epp-sa
-+  namespace: llm-d-pd
-+  labels:
-+    app.kubernetes.io/name: llm-d-infpool-epp
-+    app.kubernetes.io/version: "0.0.0"
-+rules:
-+- apiGroups: [""]
-+  resources: ["pods"]
-+  verbs: ["get", "watch", "list"]
-+---
-+# Source: inferencepool/templates/rbac.yaml
-+apiVersion: rbac.authorization.k8s.io/v1
-+kind: RoleBinding
-+metadata:
-+  name: llm-d-infpool-epp-non-sa
-+  namespace: llm-d-pd
-+subjects:
-+- kind: ServiceAccount
-+  name: llm-d-infpool-epp
-+  namespace: llm-d-pd
-+roleRef:
-+  apiGroup: rbac.authorization.k8s.io
-+  kind: Role
-+  name: llm-d-infpool-epp-non-sa
-+---
-+# Source: inferencepool/templates/rbac.yaml
-+apiVersion: rbac.authorization.k8s.io/v1
-+kind: RoleBinding
-+metadata:
-+  name: llm-d-infpool-epp-sa
-+  namespace: llm-d-pd
-+subjects:
-+- kind: ServiceAccount
-+  name: llm-d-infpool-epp
-+  namespace: llm-d-pd
-+roleRef:
-+  apiGroup: rbac.authorization.k8s.io
-+  kind: Role
-+  name: llm-d-infpool-epp-sa
-+---
-+# Source: inferencepool/templates/inferenceextension.yaml
-+apiVersion: v1
-+kind: Service
-+metadata:
-+  name: llm-d-infpool-epp
-+  namespace: llm-d-pd
-+  labels:
-+    app.kubernetes.io/name: llm-d-infpool-epp
-+    app.kubernetes.io/version: "0.0.0"
-+spec:
-+  selector:
-+    inferencepool: llm-d-infpool-epp
-+  ports:
-+    - name: grpc-ext-proc
-+      protocol: TCP
-+      port: 9002
-+    - name: http-metrics
-+      protocol: TCP
-+      port: 9090
-+  type: ClusterIP
-+---
-+# Source: inferencepool/templates/inferenceextension.yaml
-+apiVersion: apps/v1
-+kind: Deployment
-+metadata:
-+  name: llm-d-infpool-epp
-+  namespace: llm-d-pd
-+  labels:
-+    app.kubernetes.io/name: llm-d-infpool-epp
-+    app.kubernetes.io/version: "0.0.0"
-+spec:
-+  replicas: 1
-+  strategy:
-+    # The current recommended EPP deployment pattern is to have a single active replica. This ensures
-+    # optimal performance of the stateful operations such prefix cache aware scorer.
-+    # The Recreate strategy the old replica is killed immediately, and allow the new replica(s) to
-+    # quickly take over. This is particularly important in the high availability set up with leader
-+    # election, as the rolling update strategy would prevent the old leader being killed because
-+    # otherwise the maxUnavailable would be 100%.
-+    type: Recreate
-+  selector:
-+    matchLabels:
-+      inferencepool: llm-d-infpool-epp
-+  template:
-+    metadata:
-+      labels:
-+        inferencepool: llm-d-infpool-epp
-+    spec:
-+      serviceAccountName: llm-d-infpool-epp
-+      # Conservatively, this timeout should mirror the longest grace period of the pods within the pool
-+      terminationGracePeriodSeconds: 130
-+      containers:
-+        - name: epp
-+          image: ghcr.io/llm-d/llm-d-inference-scheduler:v0.6.0
-+          imagePullPolicy: Always
-+          args:
-+              - --pool-name
-+              - llm-d-infpool
-+              # The pool namespace is optional because EPP can default to the NAMESPACE env var.
-+              - --pool-namespace
-+              - llm-d-pd
-+              - --pool-group
-+              - "inference.networking.k8s.io"
-+              - --zap-encoder
-+              - "json"
-+              - --config-file
-+              - "/config/pd-config.yaml"
-+              # Pass additional flags via the inferenceExtension.flags field in values.yaml.
-+              - --kv-cache-usage-percentage-metric
-+              - "vllm:kv_cache_usage_perc"
-+              - --v
-+              - "1"
-+              - --tracing=false
-+          ports:
-+            - name: grpc
-+              containerPort: 9002
-+            - name: grpc-health
-+              containerPort: 9003
-+            - name: metrics
-+              containerPort: 9090
-+          livenessProbe:
-+            grpc:
-+              port: 9003
-+              service: inference-extension
-+            initialDelaySeconds: 5
-+            periodSeconds: 10
-+          readinessProbe:
-+            grpc:
-+              port: 9003
-+              service: inference-extension
-+            periodSeconds: 2
-+          env:
-+            - name: NAMESPACE
-+              valueFrom:
-+                fieldRef:
-+                  fieldPath: metadata.namespace
-+            - name: POD_NAME
-+              valueFrom:
-+                fieldRef:
-+                  fieldPath: metadata.name
-+            
-+          volumeMounts:
-+            - name: plugins-config-volume
-+              mountPath: "/config"
-+        
-+      volumes:
-+        - name: plugins-config-volume
-+          configMap:
-+            name: llm-d-infpool-epp
-+---
-+# Source: inferencepool/templates/inferenceextension.yaml
-+---
-+---
-+# Source: inferencepool/templates/inferencepool.yaml
-+apiVersion: "inference.networking.k8s.io/v1"
-+kind: InferencePool
-+metadata:
-+  name: llm-d-infpool
-+  namespace: llm-d-pd
-+  labels:
-+    app.kubernetes.io/name: llm-d-infpool-epp
-+    app.kubernetes.io/version: "0.0.0"
-+spec:
-+  targetPorts:
-+      - number: 8000
-+  selector:
-+    matchLabels:
-+      llm-d.ai/guide: "pd-disaggregation"
-+      llm-d.ai/inference-serving: "true"
-+  endpointPickerRef:
-+    name: llm-d-infpool-epp
-+    port:
-+      number: 9002
-+---
-+# Source: inferencepool/templates/inferenceextension.yaml
-+apiVersion: monitoring.coreos.com/v1
-+kind: ServiceMonitor
-+metadata:
-+  name: llm-d-infpool-epp-monitor
-+  namespace: llm-d-pd
-+  labels:
-+    app.kubernetes.io/name: llm-d-infpool-epp
-+    app.kubernetes.io/version: "0.0.0"
-+spec:
-+  endpoints:
-+  - interval: 10s
-+    port: "http-metrics"
-+    path: "/metrics"
-+    authorization:
-+      credentials:
-+        key: token
-+        name: pd-gateway-sa-metrics-reader-secret
-+  jobLabel: llm-d-infpool-epp
-+  namespaceSelector:
-+    matchNames:
-+    - llm-d-pd
-+  selector:
-+    matchLabels:
-+      app.kubernetes.io/name: llm-d-infpool-epp
-+      app.kubernetes.io/version: "0.0.0"
+--- /tmp/legacy_render.yaml	2026-03-11 20:34:44
++++ /tmp/v2_render.yaml	2026-03-11 20:34:44
+@@ -349,353 +349,4 @@
+       app.kubernetes.io/name: gaie-pd-epp
+       app.kubernetes.io/version: "0.0.0"
  
- ---
- # Limit output for readability
+----
+----
+-# Source: llm-d-modelservice/templates/serviceaccount.yaml
+-apiVersion: v1
+-kind: ServiceAccount
+-metadata:
+-  name: ms-pd-llm-d-modelservice
+-  labels:
+-    app.kubernetes.io/version: "v0.4.0"
+----
+-# Source: llm-d-modelservice/templates/decode-deployment.yaml
+-apiVersion: apps/v1
+-kind: Deployment
+-metadata:
+-  name: ms-pd-llm-d-modelservice-decode
+-  labels:
+-    app.kubernetes.io/version: "v0.4.0"
+-spec:
+-  replicas: 1
+-  selector:
+-    matchLabels:
+-      llm-d.ai/accelerator-vendor: nvidia
+-      llm-d.ai/guide: pd-disaggregation
+-      llm-d.ai/hardware-variant: gpu
+-      llm-d.ai/inference-serving: "true"
+-      llm-d.ai/model: gpt-oss-120b
+-      llm-d.ai/role: decode
+-  template:
+-    metadata:
+-      labels:
+-        llm-d.ai/accelerator-vendor: nvidia
+-        llm-d.ai/guide: pd-disaggregation
+-        llm-d.ai/hardware-variant: gpu
+-        llm-d.ai/inference-serving: "true"
+-        llm-d.ai/model: gpt-oss-120b
+-        llm-d.ai/role: decode
+-    spec:
+-      initContainers:
+-        - name: routing-proxy
+-          args:
+-            - --port=8000
+-            - --vllm-port=8200
+-            - --connector=nixlv2
+-            - --zap-encoder=json
+-            - --zap-log-level=debug
+-            - --secure-proxy=false
+-          image: ghcr.io/llm-d/llm-d-routing-sidecar:v0.6.0
+-          imagePullPolicy: Always
+-          env:
+-          ports:
+-            - containerPort: 8000
+-          resources: {}
+-          restartPolicy: Always
+-          securityContext:
+-            allowPrivilegeEscalation: false
+-            runAsNonRoot: true
+-    
+-      serviceAccountName: ms-pd-llm-d-modelservice
+-      
+-      volumes:
+-        - emptyDir: {}
+-          name: metrics-volume
+-        - emptyDir:
+-            medium: Memory
+-            sizeLimit: 16Gi
+-          name: shm
+-        - emptyDir: {}
+-          name: torch-compile-cache
+-      
+-        - name: model-storage
+-          emptyDir:
+-            sizeLimit: 250Gi
+-        
+-      
+-      containers:
+-        - name: vllm
+-          image: ghcr.io/llm-d/llm-d-cuda:v0.5.1
+-          
+-          command: ["vllm", "serve"]
+-          args:
+-            - openai/gpt-oss-120b
+-            - --port
+-            - "8200"
+-            - --tensor-parallel-size
+-            - "4"
+-            - --served-model-name
+-            - "openai/gpt-oss-120b"
+-            
+-            
+-            - --block-size
+-            - "128"
+-            - --kv-transfer-config
+-            - '{"kv_connector":"NixlConnector", "kv_role":"kv_both"}'
+-            - --disable-uvicorn-access-log
+-            - --max-model-len
+-            - "32000"
+-          env:
+-          - name: VLLM_NIXL_SIDE_CHANNEL_HOST
+-            valueFrom:
+-              fieldRef:
+-                fieldPath: status.podIP
+-          - name: DP_SIZE
+-            value: "1"
+-          - name: TP_SIZE
+-            value: "4"
+-          - name: DP_SIZE_LOCAL
+-            value: "1"
+-          
+-          - name: HF_HOME
+-            value: /model-cache
+-          - name: HF_TOKEN
+-            valueFrom:
+-              secretKeyRef:
+-                name: llm-d-hf-token
+-                key: HF_TOKEN
+-          
+-          ports:
+-          - containerPort: 8200
+-            name: vllm
+-            protocol: TCP
+-          - containerPort: 5600
+-            name: nixl
+-            protocol: TCP
+-          livenessProbe:
+-            failureThreshold: 3
+-            httpGet:
+-              path: /health
+-              port: vllm
+-            periodSeconds: 10
+-            timeoutSeconds: 5
+-          readinessProbe:
+-            failureThreshold: 3
+-            httpGet:
+-              path: /v1/models
+-              port: vllm
+-            periodSeconds: 5
+-            timeoutSeconds: 2
+-          startupProbe:
+-            failureThreshold: 60
+-            httpGet:
+-              path: /v1/models
+-              port: vllm
+-            initialDelaySeconds: 15
+-            periodSeconds: 30
+-            timeoutSeconds: 5
+-          resources:
+-            limits:
+-              cpu: "16"
+-              memory: 64Gi
+-              nvidia.com/gpu: "4"
+-              rdma/ib: 1
+-            requests:
+-              cpu: "16"
+-              memory: 64Gi
+-              nvidia.com/gpu: "4"
+-              rdma/ib: 1
+-          
+-          volumeMounts:
+-            - mountPath: /.config
+-              name: metrics-volume
+-            - mountPath: /dev/shm
+-              name: shm
+-            - mountPath: /.cache
+-              name: torch-compile-cache
+-            - name: model-storage
+-              mountPath: /model-cache
+----
+-# Source: llm-d-modelservice/templates/prefill-deployment.yaml
+-apiVersion: apps/v1
+-kind: Deployment
+-metadata:
+-  name: ms-pd-llm-d-modelservice-prefill
+-  labels:
+-    app.kubernetes.io/version: "v0.4.0"
+-spec:
+-  replicas: 4
+-  selector:
+-    matchLabels:
+-      llm-d.ai/accelerator-vendor: nvidia
+-      llm-d.ai/guide: pd-disaggregation
+-      llm-d.ai/hardware-variant: gpu
+-      llm-d.ai/inference-serving: "true"
+-      llm-d.ai/model: gpt-oss-120b
+-      llm-d.ai/role: prefill
+-  template:
+-    metadata:
+-      labels:
+-        llm-d.ai/accelerator-vendor: nvidia
+-        llm-d.ai/guide: pd-disaggregation
+-        llm-d.ai/hardware-variant: gpu
+-        llm-d.ai/inference-serving: "true"
+-        llm-d.ai/model: gpt-oss-120b
+-        llm-d.ai/role: prefill
+-    spec:
+-    
+-      serviceAccountName: ms-pd-llm-d-modelservice
+-      
+-      volumes:
+-        - emptyDir: {}
+-          name: metrics-volume
+-        - emptyDir:
+-            medium: Memory
+-            sizeLimit: 16Gi
+-          name: shm
+-        - emptyDir: {}
+-          name: torch-compile-cache
+-      
+-        - name: model-storage
+-          emptyDir:
+-            sizeLimit: 250Gi
+-        
+-      
+-      containers:
+-        - name: vllm
+-          image: ghcr.io/llm-d/llm-d-cuda:v0.5.1
+-          
+-          command: ["vllm", "serve"]
+-          args:
+-            - openai/gpt-oss-120b
+-            - --port
+-            - "8000"
+-            - --served-model-name
+-            - "openai/gpt-oss-120b"
+-            
+-            
+-            - --block-size
+-            - "128"
+-            - --kv-transfer-config
+-            - '{"kv_connector":"NixlConnector", "kv_role":"kv_both"}'
+-            - --disable-uvicorn-access-log
+-            - --max-model-len
+-            - "32000"
+-          env:
+-          - name: VLLM_NIXL_SIDE_CHANNEL_HOST
+-            valueFrom:
+-              fieldRef:
+-                fieldPath: status.podIP
+-          - name: DP_SIZE
+-            value: "1"
+-          - name: TP_SIZE
+-            value: "1"
+-          - name: DP_SIZE_LOCAL
+-            value: "1"
+-          
+-          - name: HF_HOME
+-            value: /model-cache
+-          - name: HF_TOKEN
+-            valueFrom:
+-              secretKeyRef:
+-                name: llm-d-hf-token
+-                key: HF_TOKEN
+-          
+-          ports:
+-          - containerPort: 8000
+-            name: vllm
+-            protocol: TCP
+-          - containerPort: 5600
+-            name: nixl
+-            protocol: TCP
+-          livenessProbe:
+-            failureThreshold: 3
+-            httpGet:
+-              path: /health
+-              port: vllm
+-            periodSeconds: 10
+-            timeoutSeconds: 5
+-          readinessProbe:
+-            failureThreshold: 3
+-            httpGet:
+-              path: /v1/models
+-              port: vllm
+-            periodSeconds: 5
+-            timeoutSeconds: 2
+-          startupProbe:
+-            failureThreshold: 60
+-            httpGet:
+-              path: /v1/models
+-              port: vllm
+-            initialDelaySeconds: 15
+-            periodSeconds: 30
+-            timeoutSeconds: 5
+-          resources:
+-            limits:
+-              cpu: "8"
+-              memory: 64Gi
+-              nvidia.com/gpu: "1"
+-              rdma/ib: 1
+-            requests:
+-              cpu: "8"
+-              memory: 64Gi
+-              nvidia.com/gpu: "1"
+-              rdma/ib: 1
+-          
+-          volumeMounts:
+-            - mountPath: /.config
+-              name: metrics-volume
+-            - mountPath: /dev/shm
+-              name: shm
+-            - mountPath: /.cache
+-              name: torch-compile-cache
+-            - name: model-storage
+-              mountPath: /model-cache
+----
+-# Source: llm-d-modelservice/templates/decode-podmonitor.yaml
+-apiVersion: monitoring.coreos.com/v1
+-kind: PodMonitor
+-metadata:
+-  name: ms-pd-llm-d-modelservice-decode-podmonitor
+-  namespace: llm-d-pd
+-  labels:
+-    app.kubernetes.io/version: "v0.4.0"
+-    app.kubernetes.io/component: decode
+-spec:
+-  selector:
+-    matchLabels:
+-      llm-d.ai/accelerator-vendor: nvidia
+-      llm-d.ai/guide: pd-disaggregation
+-      llm-d.ai/hardware-variant: gpu
+-      llm-d.ai/inference-serving: "true"
+-      llm-d.ai/model: gpt-oss-120b
+-      llm-d.ai/role: decode
+-  podMetricsEndpoints:
+-  # For decode service, this is port 8200. Must use port name.
+-  - port: "vllm"
+-    path: /metrics
+-    interval: 30s
+----
+-# Source: llm-d-modelservice/templates/prefill-podmonitor.yaml
+-apiVersion: monitoring.coreos.com/v1
+-kind: PodMonitor
+-metadata:
+-  name: ms-pd-llm-d-modelservice-prefill-podmonitor
+-  namespace: llm-d-pd
+-  labels:
+-    app.kubernetes.io/version: "v0.4.0"
+-    app.kubernetes.io/component: prefill
+-spec:
+-  selector:
+-    matchLabels:
+-      llm-d.ai/accelerator-vendor: nvidia
+-      llm-d.ai/guide: pd-disaggregation
+-      llm-d.ai/hardware-variant: gpu
+-      llm-d.ai/inference-serving: "true"
+-      llm-d.ai/model: gpt-oss-120b
+-      llm-d.ai/role: prefill
+-  podMetricsEndpoints:
+-  # For prefill, this is port 8000. Must use port name.
+-  - port: "vllm"
+-    path: /metrics
+-    interval: 30s
+\ No newline at end of file
++---
+\ No newline at end of file
+
 ```
