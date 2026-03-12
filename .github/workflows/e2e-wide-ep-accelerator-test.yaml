@@ -2,23 +2,23 @@ name: E2E Wide EP Test
 
 on:
   schedule:
-    - cron: '0 7 * * *'  # 7:00 AM UTC daily
+    - cron: "0 7 * * *" # 7:00 AM UTC daily
   workflow_dispatch:
     inputs:
       pr_or_branch:
-        description: 'Pull-request number or branch name to test'
+        description: "Pull-request number or branch name to test"
         required: true
-        default: 'main'
+        default: "main"
         type: string
       gateway_type:
-        description: 'Gateway type to use'
+        description: "Gateway type to use"
         required: false
-        default: 'istio'  # currently only istio supported because thats the default used in infra values
+        default: "istio" # currently only istio supported because thats the default used in infra values
         type: choice
         options:
           - istio
       wait_for_termination:
-        description: 'Wait time (in minutes) before terminating for debugging'
+        description: "Wait time (in minutes) before terminating for debugging"
         required: true
         default: 0
         type: number
@@ -27,7 +27,7 @@ permissions:
   packages: read
 
 env:
-  WIDE_EP_PATH: "guides/wide-ep-lws"
+  WIDE_EP_PATH: "guides/well-lit-paths/wide-ep-lws"
 
 jobs:
   setup:

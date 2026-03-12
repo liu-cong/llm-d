@@ -5,13 +5,13 @@ on:
   issue_comment:
     types: [created]
   schedule:
-    - cron: '0 10 * * *'  # 3AM PST (10:00 UTC)
+    - cron: "0 10 * * *" # 3AM PST (10:00 UTC)
   workflow_dispatch:
     inputs:
       pr_or_branch:
-        description: 'Pull-request number or branch name to test'
+        description: "Pull-request number or branch name to test"
         required: true
-        default: 'main'
+        default: "main"
         type: string
 
 permissions:
@@ -103,7 +103,7 @@ jobs:
         uses: google-github-actions/setup-gcloud@cb1e50a9932213ecece00a606661ae9ca44f3397
         with:
           project_id: ${{ env.GCP_PROJECT_ID }}
-          install_components: 'kubectl,gke-gcloud-auth-plugin'
+          install_components: "kubectl,gke-gcloud-auth-plugin"
 
       - name: Get GKE credentials
         run: |
@@ -126,7 +126,7 @@ jobs:
 
       - name: Deploy model service and GIE with Helmfile
         run: |
-          cd guides/inference-scheduling
+          cd guides/well-lit-paths/inference-scheduling
           helmfile apply -e ${{ matrix.accelerator.helmfile_env }} \
             --set "gateway.service.type=LoadBalancer" \
             --skip-schema-validation \
@@ -135,7 +135,7 @@ jobs:
 
       - name: Deploy HTTPRoute
         run: |
-          cd guides/inference-scheduling
+          cd guides/well-lit-paths/inference-scheduling
           echo "Deploying HTTPRoute..."
           kubectl apply -f httproute.gke.yaml -n ${NAMESPACE} | tee ~/inference-scheduling-deployment.log
           echo "---------------------------------------" >> ~/inference-scheduling-deployment.log
@@ -205,16 +205,16 @@ jobs:
       - name: Collect and upload Kubernetes pod logs
         if: always()
         run: |
-            mkdir -p pod-logs-inference-scheduling
-            cd pod-logs-inference-scheduling
-            echo "Fetching ${NAMESPACE} pods log..."
-            kubectl get pods -n "${NAMESPACE}" --no-headers -o custom-columns=":metadata.name" \
-            | xargs -I{} sh -c 'kubectl logs --all-containers=true -n "${NAMESPACE}" {} > "{}.log" 2>&1'
-            echo "Fetching ${NAMESPACE} pods descriptions..."
-            kubectl get pods -n "${NAMESPACE}" --no-headers -o custom-columns=":metadata.name" \
-            | xargs -I{} sh -c 'kubectl describe pod -n "${NAMESPACE}" {} > "{}-describe.log" 2>&1'
-            mv ~/inference-scheduling-deployment.log . || true
-            mv ~/install-deps.log . || true
+          mkdir -p pod-logs-inference-scheduling
+          cd pod-logs-inference-scheduling
+          echo "Fetching ${NAMESPACE} pods log..."
+          kubectl get pods -n "${NAMESPACE}" --no-headers -o custom-columns=":metadata.name" \
+          | xargs -I{} sh -c 'kubectl logs --all-containers=true -n "${NAMESPACE}" {} > "{}.log" 2>&1'
+          echo "Fetching ${NAMESPACE} pods descriptions..."
+          kubectl get pods -n "${NAMESPACE}" --no-headers -o custom-columns=":metadata.name" \
+          | xargs -I{} sh -c 'kubectl describe pod -n "${NAMESPACE}" {} > "{}-describe.log" 2>&1'
+          mv ~/inference-scheduling-deployment.log . || true
+          mv ~/install-deps.log . || true
 
       - name: Upload pod logs as artifact
         uses: actions/upload-artifact@v6
@@ -229,11 +229,11 @@ jobs:
         with:
           webhookUrl: ${{ secrets.GOOGLE_CHAT_WEBHOOK }}
           jobStatus: ${{ job.status }}
-          title: '${{ github.workflow }} - ${{ matrix.accelerator.name }}'
+          title: "${{ github.workflow }} - ${{ matrix.accelerator.name }}"
 
       - name: Cleanup deployment
         if: always()
         run: |
-          cd guides/inference-scheduling
+          cd guides/well-lit-paths/inference-scheduling
           helmfile destroy -e ${{ matrix.accelerator.helmfile_env }}
           kubectl delete -f httproute.gke.yaml -n ${NAMESPACE}

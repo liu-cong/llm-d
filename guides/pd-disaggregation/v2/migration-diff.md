@@ -10,18 +10,18 @@ This document proves that the new hybrid architecture is semantically equivalent
 
 2. **Model Server (vLLM)**:
    - Legacy: `helm template ms-pd ms-chart -f ms-pd/values.yaml`
-   - v2: `kustomize build v2/manifests/vllm/base`
+   - v2: `kubectl kustomize v2/manifests/vllm/base`
 
 ## Diff Content (Normalized)
 
 Metadata like Helm labels and release names have been normalized for comparison.
 
 ```diff
---- /tmp/legacy_render.yaml	2026-03-11 20:34:44
-+++ /tmp/v2_render.yaml	2026-03-11 20:34:44
-@@ -349,353 +349,4 @@
+--- /tmp/legacy_render_pd-disaggregation.yaml	2026-03-11 20:35:21
++++ /tmp/v2_render_pd-disaggregation.yaml	2026-03-11 20:35:22
+@@ -339,348 +339,13 @@
+     matchLabels:
        app.kubernetes.io/name: gaie-pd-epp
-       app.kubernetes.io/version: "0.0.0"
  
 ----
 ----
@@ -31,15 +31,15 @@ Metadata like Helm labels and release names have been normalized for comparison.
 -metadata:
 -  name: ms-pd-llm-d-modelservice
 -  labels:
--    app.kubernetes.io/version: "v0.4.0"
-----
+ ---
 -# Source: llm-d-modelservice/templates/decode-deployment.yaml
 -apiVersion: apps/v1
 -kind: Deployment
--metadata:
++apiVersion: inference.networking.x-k8s.io/v1alpha2
++kind: InferenceModel
+ metadata:
 -  name: ms-pd-llm-d-modelservice-decode
 -  labels:
--    app.kubernetes.io/version: "v0.4.0"
 -spec:
 -  replicas: 1
 -  selector:
@@ -196,8 +196,9 @@ Metadata like Helm labels and release names have been normalized for comparison.
 -metadata:
 -  name: ms-pd-llm-d-modelservice-prefill
 -  labels:
--    app.kubernetes.io/version: "v0.4.0"
--spec:
++  name: gpt-oss-120b
++  namespace: llm-d-pd
+ spec:
 -  replicas: 4
 -  selector:
 -    matchLabels:
@@ -333,7 +334,6 @@ Metadata like Helm labels and release names have been normalized for comparison.
 -  name: ms-pd-llm-d-modelservice-decode-podmonitor
 -  namespace: llm-d-pd
 -  labels:
--    app.kubernetes.io/version: "v0.4.0"
 -    app.kubernetes.io/component: decode
 -spec:
 -  selector:
@@ -357,7 +357,6 @@ Metadata like Helm labels and release names have been normalized for comparison.
 -  name: ms-pd-llm-d-modelservice-prefill-podmonitor
 -  namespace: llm-d-pd
 -  labels:
--    app.kubernetes.io/version: "v0.4.0"
 -    app.kubernetes.io/component: prefill
 -spec:
 -  selector:
@@ -374,7 +373,9 @@ Metadata like Helm labels and release names have been normalized for comparison.
 -    path: /metrics
 -    interval: 30s
 \ No newline at end of file
-+---
++  modelName: openai/gpt-oss-120b
++  poolRef:
++    name: gaie-pd
 \ No newline at end of file
 
 ```

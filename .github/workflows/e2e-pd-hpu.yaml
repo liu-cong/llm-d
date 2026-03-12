@@ -2,20 +2,20 @@ name: HPU PD Test
 
 on:
   schedule:
-    - cron: '30 4 * * *'  # 4:30 AM UTC daily
+    - cron: "30 4 * * *" # 4:30 AM UTC daily
   pull_request:
     paths:
-      - 'guides/pd-disaggregation/ms-pd/values_hpu.yaml'
-      - 'guides/pd-disaggregation/gaie-pd/**'
-      - 'guides/pd-disaggregation/helmfile.yaml.gotmpl'
-      - 'docker/Dockerfile.hpu'
-      - '.github/workflows/e2e-pd-hpu.yaml'
+      - "guides/well-lit-paths/pd-disaggregation/ms-pd/values_hpu.yaml"
+      - "guides/well-lit-paths/pd-disaggregation/gaie-pd/**"
+      - "guides/well-lit-paths/pd-disaggregation/helmfile.yaml.gotmpl"
+      - "docker/Dockerfile.hpu"
+      - ".github/workflows/e2e-pd-hpu.yaml"
   workflow_dispatch:
     inputs:
       pr_or_branch:
-        description: 'Pull-request number or branch name to test'
+        description: "Pull-request number or branch name to test"
         required: true
-        default: 'main'
+        default: "main"
         type: string
 
 jobs:
@@ -94,12 +94,12 @@ jobs:
 
       - name: Deploy guide
         run: |
-          cd guides/pd-disaggregation
+          cd guides/well-lit-paths/pd-disaggregation
           echo "Starting helmfile deployment for hpu environment..."
           RELEASE_NAME_POSTFIX=${RELEASE_NAME_POSTFIX} \
           helmfile apply -e hpu -n "${NAMESPACE}" 2>&1 \
             | tee ~/pd-hpu-deployment.log
-          
+
           # Check if helmfile command succeeded
           HELMFILE_EXIT_CODE=${PIPESTATUS[0]}
           if [ ${HELMFILE_EXIT_CODE} -ne 0 ]; then
@@ -108,9 +108,9 @@ jobs:
             cat ~/pd-hpu-deployment.log
             exit 1
           fi
-          
+
           echo "---------------------------------------" >> ~/pd-hpu-deployment.log
-          
+
           # Verify releases were created
           echo "✅ Helmfile apply succeeded. Checking deployed releases..."
           helm list -n "${NAMESPACE}"
@@ -126,7 +126,7 @@ jobs:
 
       - name: Deploy HTTPRoute
         run: |
-          cd guides/pd-disaggregation
+          cd guides/well-lit-paths/pd-disaggregation
           kubectl apply -f httproute.yaml -n "${NAMESPACE}"
 
       - name: Wait for all pods to be ready
@@ -189,19 +189,19 @@ jobs:
       - name: Collect and upload Kubernetes pod logs
         if: always()
         run: |
-            mkdir -p pod-logs-pd-hpu
-            cd pod-logs-pd-hpu
-            echo "Fetching ${NAMESPACE} pods log..."
-            kubectl get pods -n "${NAMESPACE}" -l "llm-d.ai/inferenceServing" -o yaml > ./inference-pods.yaml
-            kubectl logs -n "${NAMESPACE}" -l "llm-d.ai/inferenceServing" | grep -v "waiting for vLLM to be ready" > ./inference-pod-logs.log || true
-            kubectl describe pod -n "${NAMESPACE}" -l "llm-d.ai/inferenceServing" > ./inference-describe-pod-logs.log
-            kubectl get pods -n "${NAMESPACE}" --no-headers -o custom-columns=":metadata.name" \
-            | xargs -I{} sh -c 'kubectl logs --all-containers=true -n "${NAMESPACE}" {} > "{}.log" 2>&1' || true
-            echo "Fetching ${NAMESPACE} pods descriptions..."
-            kubectl get pods -n "${NAMESPACE}" --no-headers -o custom-columns=":metadata.name" \
-            | xargs -I{} sh -c 'kubectl describe pod -n "${NAMESPACE}" {} > "{}-describe.log" 2>&1' || true
-            mv ~/pd-hpu-deployment.log . || true
-            mv ~/install-deps.log . || true
+          mkdir -p pod-logs-pd-hpu
+          cd pod-logs-pd-hpu
+          echo "Fetching ${NAMESPACE} pods log..."
+          kubectl get pods -n "${NAMESPACE}" -l "llm-d.ai/inferenceServing" -o yaml > ./inference-pods.yaml
+          kubectl logs -n "${NAMESPACE}" -l "llm-d.ai/inferenceServing" | grep -v "waiting for vLLM to be ready" > ./inference-pod-logs.log || true
+          kubectl describe pod -n "${NAMESPACE}" -l "llm-d.ai/inferenceServing" > ./inference-describe-pod-logs.log
+          kubectl get pods -n "${NAMESPACE}" --no-headers -o custom-columns=":metadata.name" \
+          | xargs -I{} sh -c 'kubectl logs --all-containers=true -n "${NAMESPACE}" {} > "{}.log" 2>&1' || true
+          echo "Fetching ${NAMESPACE} pods descriptions..."
+          kubectl get pods -n "${NAMESPACE}" --no-headers -o custom-columns=":metadata.name" \
+          | xargs -I{} sh -c 'kubectl describe pod -n "${NAMESPACE}" {} > "{}-describe.log" 2>&1' || true
+          mv ~/pd-hpu-deployment.log . || true
+          mv ~/install-deps.log . || true
 
       - name: Upload pod logs as artifact
         uses: actions/upload-artifact@v6
@@ -213,6 +213,6 @@ jobs:
       - name: Cleanup deployment
         if: always()
         run: |
-          cd guides/pd-disaggregation
+          cd guides/well-lit-paths/pd-disaggregation
           helmfile destroy -e hpu -n "${NAMESPACE}"
           kubectl delete ns ${NAMESPACE}
