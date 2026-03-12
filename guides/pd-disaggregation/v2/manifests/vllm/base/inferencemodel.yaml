@@ -1,0 +1,9 @@
+apiVersion: inference.networking.x-k8s.io/v1alpha2
+kind: InferenceModel
+metadata:
+  name: gpt-oss-120b
+  namespace: llm-d-pd
+spec:
+  modelName: openai/gpt-oss-120b
+  poolRef:
+    name: gaie-pd
