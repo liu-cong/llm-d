@@ -21,17 +21,17 @@ WVA integrates with llm-d to:
 Before installing WVA, ensure you have:
 
 1. **Kubernetes cluster**: A running Kubernetes cluster (v1.31+) with GPU support. WVA uses the [Intelligent Inference Scheduling](../inference-scheduling/README.md) well-lit path, which requires GPUs. See [Hardware Requirements](../inference-scheduling/README.md#hardware-requirements) for supported accelerator types. If you need to set up a local cluster:
-   - **Kind**: For Kind clusters with GPU emulation, use the [WVA Kind setup script](https://github.com/llm-d-incubation/workload-variant-autoscaler/blob/v0.5.1/deploy/kind-emulator/setup.sh) which creates a cluster and patches nodes with GPU capacity (required for pod scheduling if using GPU-requesting pods). **Note**: Saturation-based scaling does not require node patching; it only uses workload metrics. See [Infrastructure Prerequisites](../prereq/infrastructure/README.md) for other cluster setup options.
-   - **Minikube**: See [Minikube setup documentation](../../docs/infra-providers/minikube/README.md) for single-host development.
-   - **Production clusters**: See [Infrastructure Prerequisites](../prereq/infrastructure/README.md) for provider-specific setup (GKE, AKS, OpenShift (4.18+), etc.).
+   - **Kind**: For Kind clusters with GPU emulation, use the [WVA Kind setup script](https://github.com/llm-d-incubation/workload-variant-autoscaler/blob/v0.5.1/deploy/kind-emulator/setup.sh) which creates a cluster and patches nodes with GPU capacity (required for pod scheduling if using GPU-requesting pods). **Note**: Saturation-based scaling does not require node patching; it only uses workload metrics. See [Infrastructure Prerequisites](../../prereq/infrastructure/README.md) for other cluster setup options.
+   - **Minikube**: See [Minikube setup documentation](../../../docs/infra-providers/minikube/README.md) for single-host development.
+   - **Production clusters**: See [Infrastructure Prerequisites](../../prereq/infrastructure/README.md) for provider-specific setup (GKE, AKS, OpenShift (4.18+), etc.).
 
-2. **Gateway control plane**: Configure and deploy your [Gateway control plane](../prereq/gateway-provider/README.md) (Istio) before installation.
+2. **Gateway control plane**: Configure and deploy your [Gateway control plane](../../prereq/gateway-provider/README.md) (Istio) before installation.
 
 3. **Prometheus monitoring stack**: WVA requires Prometheus to be accessible for metric collection. **WVA requires HTTPS connections to Prometheus**. The monitoring setup depends on your platform:
    - **OpenShift**: User Workload Monitoring should be enabled (see [OpenShift monitoring docs](https://docs.redhat.com/en/documentation/monitoring_stack_for_red_hat_openshift/4.18/html-single/configuring_user_workload_monitoring/index))
    - **GKE**: An in-cluster Prometheus instance is required (GMP does not expose HTTP API). See [GKE configuration](#gke) below for setup instructions.
    - **Kind/Minikube**: Install Prometheus with TLS/HTTPS configuration. See [Kind/Minikube configuration](#other-kubernetes-platforms-kind-minikube-etc) below for installation and TLS setup instructions.
-   - **Other Kubernetes**: A Prometheus stack must be installed with HTTPS support (see [monitoring documentation](../../docs/monitoring/README.md))
+   - **Other Kubernetes**: A Prometheus stack must be installed with HTTPS support (see [monitoring documentation](../../../docs/monitoring/README.md))
 
 4. **Create Installation Namespace**:
 
@@ -40,7 +40,7 @@ Before installing WVA, ensure you have:
   kubectl create namespace ${NAMESPACE}
   ```
 
-1. **HuggingFace token secret**: [Create the `llm-d-hf-token` secret in your target namespace with the key `HF_TOKEN` matching a valid HuggingFace token](../prereq/client-setup/README.md#huggingface-token) to pull models.
+1. **HuggingFace token secret**: [Create the `llm-d-hf-token` secret in your target namespace with the key `HF_TOKEN` matching a valid HuggingFace token](../../prereq/client-setup/README.md#huggingface-token) to pull models.
 
 ## Installation
 
@@ -138,7 +138,7 @@ helm upgrade llmd prometheus-community/kube-prometheus-stack -n ${MON_NS} \
   --reuse-values
 ```
 
-> **Note**: For Kind clusters, consider using [simulated-accelerators](../simulated-accelerators/README.md) if vLLM GPU detection fails. **Saturation-based scaling does not require node patching**—it only uses workload metrics (KV cache utilization, queue length). Simulator pods don't request GPUs, so they can schedule without node patching. If using regular vLLM with GPU resource requests on Kind, you must patch nodes for pods to schedule (e.g., `kubectl patch node <node-name> -p '{"status":{"capacity":{"nvidia.com/gpu":"8"}}}'`). WVA automatically discovers its namespace via `POD_NAMESPACE`.
+> **Note**: For Kind clusters, consider using [simulated-accelerators](../../supporting/simulated-accelerators/README.md) if vLLM GPU detection fails. **Saturation-based scaling does not require node patching**—it only uses workload metrics (KV cache utilization, queue length). Simulator pods don't request GPUs, so they can schedule without node patching. If using regular vLLM with GPU resource requests on Kind, you must patch nodes for pods to schedule (e.g., `kubectl patch node <node-name> -p '{"status":{"capacity":{"nvidia.com/gpu":"8"}}}'`). WVA automatically discovers its namespace via `POD_NAMESPACE`.
 
 ### Step 3: Create WVA Namespace (if needed)
 
