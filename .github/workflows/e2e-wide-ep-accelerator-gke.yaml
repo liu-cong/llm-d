@@ -115,7 +115,7 @@ jobs:
 
       - name: Deploy model server
         run: |
-          cd guides/wide-ep-lws
+          cd guides/well-lit-paths/wide-ep-lws
           echo "Deploying Model Server..."
           kubectl apply -k ./manifests/modelserver/gke -n ${NAMESPACE} | tee ~/wide-ep-deployment.log
           echo "---------------------------------------" >> ~/wide-ep-deployment.log
@@ -123,7 +123,7 @@ jobs:
       - name: Deploy InferencePool
         shell: bash
         run: |
-          cd guides/wide-ep-lws/manifests
+          cd guides/well-lit-paths/wide-ep-lws/manifests
           echo "Deploying InferencePool..."
           helm install llm-d-infpool \
           --namespace ${NAMESPACE} \
@@ -137,7 +137,7 @@ jobs:
 
       - name: Deploy Gateway and HTTPRoute
         run: |
-          cd guides/recipes/gateway
+          cd guides/primitives/gateway
           echo "Deploying Gateway and HTTPRoute..."
           kubectl apply -k ./gke-l7-regional-external-managed -n ${NAMESPACE} | tee ~/wide-ep-deployment.log
           kubectl get gateway -n ${NAMESPACE}

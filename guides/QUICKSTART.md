@@ -49,12 +49,12 @@ You must select an [appropriate Gateway implementation for your infrastructure a
 Select an appropriate guide from the list in the [README.md](./README.md).
 
 > [!IMPORTANT]
-> We recommend starting with the [inference scheduling](./inference-scheduling/README.md) well-lit path if you are looking to deploy vLLM in a recommended production serving configuration. Use of an intelligent load balancer is broadly applicable to all environments and streamlines gathering the most critical operational metrics.
+> We recommend starting with the [inference scheduling](./well-lit-paths/inference-scheduling/README.md) well-lit path if you are looking to deploy vLLM in a recommended production serving configuration. Use of an intelligent load balancer is broadly applicable to all environments and streamlines gathering the most critical operational metrics.
 
 Navigate to the desired guide directory and follow its README instructions. For example:
 
 ```bash
-cd quickstarts/guides/inference-scheduling  # Navigate to your desired example directory
+cd quickstarts/guides/well-lit-paths/inference-scheduling  # Navigate to your desired example directory
 # Follow the README.md instructions in the example directory
 ```
 

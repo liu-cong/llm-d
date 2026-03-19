@@ -27,7 +27,7 @@ permissions:
   packages: read
 
 env:
-  WIDE_EP_PATH: "guides/wide-ep-lws"
+  WIDE_EP_PATH: "guides/well-lit-paths/wide-ep-lws"
 
 jobs:
   setup:

@@ -129,7 +129,7 @@ jobs:
         env:
           GATEWAY_TYPE: ${{ env.GATEWAY_TYPE }}
         run: |
-          cd guides/simulated-accelerators
+          cd guides/supporting/simulated-accelerators
           helmfile apply -e ${GATEWAY_TYPE} \
             --set "gateway.gatewayParameters.resources.requests.cpu=100m" \
             --set "gateway.gatewayParameters.resources.requests.memory=128Mi" \
@@ -139,7 +139,7 @@ jobs:
 
       - name: Deploy the httpRoute
         run: |
-          cd guides/simulated-accelerators
+          cd guides/supporting/simulated-accelerators
           echo "Deploying HTTPRoute..."
           kubectl apply -f httproute.yaml -n ${{ env.NAMESPACE }}
 
@@ -251,5 +251,5 @@ jobs:
           GATEWAY_TYPE: ${{ env.GATEWAY_TYPE }}
         run: |
           echo "🧹 Validating Cleanup…"
-          cd guides/simulated-accelerators
+          cd guides/supporting/simulated-accelerators
           helmfile destroy -e ${GATEWAY_TYPE}

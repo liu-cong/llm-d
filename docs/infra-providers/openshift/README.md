@@ -92,7 +92,7 @@ helmfile apply -f istio.helmfile.yaml
 
 ### Deploy the example `precise prefix cache aware`
 
-Go to the `guides/precise-prefix-cache-aware` example directory.
+Go to the `guides/well-lit-paths/precise-prefix-cache-aware` example directory.
 ```sh
 cd ../../precise-prefix-cache-aware
 ```

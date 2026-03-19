@@ -171,7 +171,7 @@ Container Start
 
 ### Simulated Accelerator Deployment
 
-Example from `guides/simulated-accelerators/ms-sim/values.yaml`:
+Example from `guides/supporting/simulated-accelerators/ms-sim/values.yaml`:
 
 ```yaml
 decode:
@@ -210,7 +210,7 @@ decode:
 
 ### Wide Endpoint Deployment
 
-Example from `guides/wide-ep-lws/manifests/modelserver/base/decode.yaml`:
+Example from `guides/well-lit-paths/wide-ep-lws/manifests/modelserver/base/decode.yaml`:
 
 ```yaml
 apiVersion: v1

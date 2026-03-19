@@ -25,7 +25,7 @@ Currently llm-d community only supports OSX and Linux development.
 
 ## HuggingFace Token
 
-Most guides download their model from Huggingface directly in the `llm-d` image. There are exceptions to this like the [`simulated-accelerators` guide](../../simulated-accelerators/) that uses no model, or the [`wide-ep-lws` guide](../../wide-ep-lws/) which uses a model loaded from storage directly on the nodes for faster development cycle iterations.
+Most guides download their model from Huggingface directly in the `llm-d` image. There are exceptions to this like the [`simulated-accelerators` guide](../../supporting/simulated-accelerators/) that uses no model, or the [`wide-ep-lws` guide](../../well-lit-paths/wide-ep-lws/) which uses a model loaded from storage directly on the nodes for faster development cycle iterations.
 
 For the rest you will need to create a Kubernetes secret in your deployment namespace containing your HuggingFace Token. For more information on getting a token, see [the huggingface docs](https://huggingface.co/docs/hub/en/security-tokens).
 

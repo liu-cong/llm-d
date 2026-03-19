@@ -83,7 +83,7 @@ Use the `digitalocean` environment to automatically load DigitalOcean-specific v
 
 ```bash
 # For inference scheduling (2 decode pods)
-cd guides/inference-scheduling
+cd guides/well-lit-paths/inference-scheduling
 export NAMESPACE=llm-d-inference-scheduling
 helmfile apply -e digitalocean -n ${NAMESPACE}
 ```
@@ -254,11 +254,11 @@ helmfile destroy -f istio.helmfile.yaml
 
 ### Base Configurations (Unchanged)
 
-* `guides/inference-scheduling/ms-inference-scheduling/values.yaml`
+* `guides/well-lit-paths/inference-scheduling/ms-inference-scheduling/values.yaml`
 
 ### DigitalOcean Overrides (Platform-Specific)
 
-* `guides/inference-scheduling/ms-inference-scheduling/digitalocean-values.yaml`
+* `guides/well-lit-paths/inference-scheduling/ms-inference-scheduling/digitalocean-values.yaml`
 
 ### Helmfile Configuration
 

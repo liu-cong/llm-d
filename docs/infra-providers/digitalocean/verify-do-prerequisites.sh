@@ -48,7 +48,7 @@ Options:
     -h, --help              Show this help message
 
 After this completes, run the standard deployment:
-    cd ../../../guides/pd-disaggregation
+    cd ../../../guides/well-lit-paths/pd-disaggregation
     helmfile apply -e digitalocean
 
 EOF
@@ -192,7 +192,7 @@ main() {
     print_success "DigitalOcean-specific prerequisites completed!"
     echo
     print_status "Next step: Run standard Helm deployment"
-    echo "    cd ../../../guides/pd-disaggregation"
+    echo "    cd ../../../guides/well-lit-paths/pd-disaggregation"
     echo "    helmfile apply -e digitalocean"
 }
 

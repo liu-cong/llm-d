@@ -2,8 +2,13 @@ name: HPU PD Test
 
 on:
   schedule:
-    - cron: '30 4 * * *'  # 4:30 AM UTC daily
-  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'guides/well-lit-paths/pd-disaggregation/ms-pd/values_hpu.yaml'
+      - 'guides/well-lit-paths/pd-disaggregation/gaie-pd/**'
+      - 'guides/well-lit-paths/pd-disaggregation/helmfile.yaml.gotmpl'
+      - 'docker/Dockerfile.hpu'
+      - '.github/workflows/e2e-pd-hpu.yaml'
     inputs:
       pr_or_branch:
         description: 'PR number (e.g. 123 or pr-123) or branch name (e.g. main, feature/xyz) to test'
@@ -123,7 +128,7 @@ jobs:
 
       - name: Deploy guide
         run: |
-          cd guides/pd-disaggregation
+          cd guides/well-lit-paths/pd-disaggregation
           echo "Starting helmfile deployment for hpu environment..."
           RELEASE_NAME_POSTFIX=${RELEASE_NAME_POSTFIX} \
           helmfile apply -e hpu -n "${NAMESPACE}" ${HELM_SET_IMAGE} \
@@ -156,7 +161,7 @@ jobs:
 
       - name: Deploy HTTPRoute
         run: |
-          cd guides/pd-disaggregation
+          cd guides/well-lit-paths/pd-disaggregation
           kubectl apply -f httproute.yaml -n "${NAMESPACE}"
 
       - name: Wait for all pods to be ready
@@ -240,6 +245,6 @@ jobs:
       - name: Cleanup deployment
         if: always()
         run: |
-          cd guides/pd-disaggregation
+          cd guides/well-lit-paths/pd-disaggregation
           helmfile destroy -e hpu -n "${NAMESPACE}"
           kubectl delete ns ${NAMESPACE}

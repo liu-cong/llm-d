@@ -36,7 +36,7 @@ jobs:
     uses: llm-d/llm-d-infra/.github/workflows/reusable-nightly-e2e-openshift-helmfile.yaml@main
     with:
       guide_name: wide-ep-lws
-      guide_path: guides/wide-ep-lws
+      guide_path: guides/well-lit-paths/wide-ep-lws
       namespace: llm-d-nightly-wide-ep
       helmfile_env: ${{ github.event.inputs.gateway_type || 'istio' }}
       gateway_type: ${{ github.event.inputs.gateway_type || 'istio' }}
@@ -66,7 +66,7 @@ jobs:
           echo "LeaderWorkerSet CRD already installed"
         fi
 
-        NIGHTLY_DIR="guides/wide-ep-lws/manifests/modelserver/nightly"
+        NIGHTLY_DIR="guides/well-lit-paths/wide-ep-lws/manifests/modelserver/nightly"
         mkdir -p "$NIGHTLY_DIR"
 
         # --- Slim prefill manifest ---
@@ -236,7 +236,7 @@ jobs:
         DECODE_EOF
 
         # --- ServiceAccount (copy from base) ---
-        cp "guides/wide-ep-lws/manifests/modelserver/base/serviceAccount.yaml" \
+        cp "guides/well-lit-paths/wide-ep-lws/manifests/modelserver/base/serviceAccount.yaml" \
           "${NIGHTLY_DIR}/serviceAccount.yaml"
 
         # --- Kustomization for nightly overlay ---
@@ -265,17 +265,17 @@ jobs:
 
         # 1. Deploy gateway recipe
         echo "Deploying gateway recipe ($GATEWAY_TYPE)..."
-        kubectl apply -k "guides/recipes/gateway/${GATEWAY_TYPE}" -n "$NAMESPACE"
+        kubectl apply -k "guides/primitives/gateway/${GATEWAY_TYPE}" -n "$NAMESPACE"
 
         # 2. Deploy model server via kustomize (nightly slim overlay)
         echo "Deploying model server (LeaderWorkerSets)..."
-        kubectl apply -k guides/wide-ep-lws/manifests/modelserver/nightly -n "$NAMESPACE"
+        kubectl apply -k guides/well-lit-paths/wide-ep-lws/manifests/modelserver/nightly -n "$NAMESPACE"
 
         # 3. Deploy InferencePool via helm
         echo "Deploying InferencePool..."
         helm install llm-d-infpool \
           -n "$NAMESPACE" \
-          -f guides/wide-ep-lws/manifests/inferencepool.values.yaml \
+          -f guides/well-lit-paths/wide-ep-lws/manifests/inferencepool.values.yaml \
           --set "provider.name=${GATEWAY_TYPE}" \
           oci://registry.k8s.io/gateway-api-inference-extension/charts/inferencepool \
           --version v1.3.0
