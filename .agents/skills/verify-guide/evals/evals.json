@@ -1,0 +1,17 @@
+{
+  "skill_name": "llm-d-verify-guide",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Verify the llm-d user guide: guides/simulated-accelerators/README.md. Check links, dependencies, and dry-run manifests.",
+      "expected_output": "Detailed verification report for simulated-accelerators guide.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "Verify the llm-d user guide: guides/pd-disaggregation/README.md. Check links, dependencies, and dry-run manifests.",
+      "expected_output": "Detailed verification report for pd-disaggregation guide.",
+      "files": []
+    }
+  ]
+}
