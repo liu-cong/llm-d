@@ -23,7 +23,7 @@ Validate that changes to the guide do not break downstream or lateral dependenci
 
 #### 2.1 CI/CD Workflow Alignment
 - **Location**: `<repo-root>/.github/workflows/`
-- **Action**: Inspect workflows (e.g., `e2e-*.yaml`, `test-guides.yaml`). Ensure that workflow matrices, path filters, and deployment steps align with the guide's current structure and logic.
+- **Action**: Inspect workflows (e.g., `e2e-*.yaml`). Ensure that workflow matrices, path filters, and deployment steps align with the guide's current structure and logic.
 
 #### 2.2 Cross-Guide Referencing
 - **Location**: `<repo-root>/guides/`
