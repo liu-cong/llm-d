@@ -9,7 +9,7 @@ A professional diagnostic skill designed to ensure the integrity and operability
 
 ## Primary Objective
 
-To validate that an llm-d user guide (typically a `README.md` within `guides/well-lit-paths/`) is accurate, consistent with external dependencies, and technically sound.
+To validate that an llm-d user guide (typically a `README.md` within a subdirectory under `guides/`, such as `guides/optimized-baseline/` or `guides/pd-disaggregation/`) is accurate, consistent with external dependencies, and technically sound.
 
 ## Verification Tiers
 
