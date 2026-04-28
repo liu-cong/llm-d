@@ -14,7 +14,7 @@ Ask the agent to verify a guide using this skill. For example:
 - "Verify the guide `guides/optimized-baseline/README.md`."
 - "Run end-to-end verification for the `guides/optimized-baseline/README.md` guide on the cluster `my-cluster`."
 
-For more details, see the [SKILL.md](file:///Users/conliu/projects/llm-d/.agents/skills/verify-guide/SKILL.md).
+For more details, see the [SKILL.md](verify-guide/SKILL.md).
 
 > [!NOTE]
 > **Skill Path Differences & Symlinking**
