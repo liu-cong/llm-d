@@ -38,7 +38,7 @@ Validate the actual technical components described in the guide.
 
 #### 3.2 Cluster-Level Validation (E2E)
 - **Condition**: **Mandatory ONLY when explicitly requested.**
-- **Action**: Deploy the stack step-by-step into the target Kubernetes cluster. Verify an inference request can be successfully processed. When needed, create the `llm-d-hf-token` secret using the `$HF_TOKEN` environment variable if set, otherwise use the `HF_TOKEN` in `../../.env`.
+- **Action**: Deploy the stack step-by-step into the target Kubernetes cluster. Verify an inference request can be successfully processed. When needed, create the `llm-d-hf-token` secret using the `HF_TOKEN` environment variable only if it is already set. If `HF_TOKEN` is not set, refer to `helpers/hf-token.md` for token setup guidance before proceeding. Do **not** print, echo, or include the token value in logs, commands, or reports.
 - **Execution Policy**: Fail-fast. Stop execution upon initial failure, capture the error state, and propose remediation.
 - **Workarounds Prohibited**: Do not modify the guide's core components (such as the model server image, required resources, or dependent features) to bypass failures. The objective is to test the guide exactly as documented. If a step fails, capture the failure, report it, and terminate the verification tier.
 
