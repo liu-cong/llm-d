@@ -6,7 +6,17 @@ You need this patch when running tensor parallelism on a GKE cluster that has th
 
 ### Diagnosis
 
-If gIB is installed, vLLM will try to load the gIB NCCL tuner plugin, which will fail. To see the error log, add the following environment variable to your model server deployment:
+If gIB is installed, vLLM will try to load the gIB NCCL tuner plugin, which will fail.
+
+To verify gIB is installed on a node, run the following command on the node:
+
+```
+ls /home/kubernetes/bin/gib
+```
+
+If you see the folder is not empty, it means gIB is installed.
+
+To see the NCCL error log, add the following environment variable to your model server deployment:
 
 ```
 env:
