@@ -12,33 +12,24 @@ This guide demonstrates how to deploy DeepSeek-R1-0528 using vLLM's P/D disaggre
 
 > WARNING: We are still investigating and optimizing performance for other hardware and networking configurations
 
-In this example, we will demonstrate a deployment of `DeepSeek-R1-0528` with:
-
-* 1 DP=16 Prefill Worker
-* 1 DP=16 Decode Worker
-
 ## Default Configuration
 
-| Parameter          | Value                                                   |
-| ------------------ | ------------------------------------------------------- |
-| Model              | [DeepSeek-R1-0528](https://huggingface.co/deepseek-ai/DeepSeek-R1-0528) |
-| Data Parallelism | 16                                                       |
-| Total GPUs         | 32                                                      |
+| Parameter                | Value                                                   |
+| ------------------------ | ------------------------------------------------------- |
+| Model                    | [DeepSeek-R1-0528](https://huggingface.co/deepseek-ai/DeepSeek-R1-0528) |
+| Prefill Data Parallelism | 16                                                      |
+| Decode Data Parallelism  | 16                                                      |
+| Total GPUs               | 32                                                      |
 
 ### Supported Hardware Backends
 
 This guide includes configurations for the following accelerators:
 
-| Backend               | Directory                           | Notes                        |
-| --------------------- | ----------------------------------- | ---------------------------- |
-| NVIDIA GPU (GKE)      | `modelserver/gpu/vllm/gke/`         | Default configuration (H200) |
-| NVIDIA GPU (GKE A4)   | `modelserver/gpu/vllm/gke-a4/`      | GKE B200 on a4 instance type |
-| NVIDIA GPU (CoreWeave)| `modelserver/gpu/vllm/coreweave/`   | CoreWeave deployment         |
-
-
-## Hardware Requirements
-
-This guide requires 32 Nvidia H200 or B200 GPUs and InfiniBand or RoCE RDMA networking. Check `modelserver/gpu/vllm/base/decode.yaml` and `modelserver/gpu/vllm/base/prefill.yaml` for detailed resource requirements.
+| Backend             | Directory                  | Notes                                      |
+| ------------------- | -------------------------- | ------------------------------------------ |
+| NVIDIA GPU (GKE)    | `modelserver/gke/`         | GKE deployment (H200)                      |
+| NVIDIA GPU (GKE A4) | `modelserver/gke-a4/`      | GKE deployment (B200)                      |
+| NVIDIA GPU (CoreWeave)| `modelserver/coreweave/`   | CoreWeave deployment                     |
 
 > [!NOTE]
 > The pods leveraging inter-node EP must be deployed in a cluster environment with full mesh
@@ -61,7 +52,6 @@ This guide requires 32 Nvidia H200 or B200 GPUs and InfiniBand or RoCE RDMA netw
     export GAIE_VERSION=v1.4.0
     export GUIDE_NAME="wide-ep-lws"
     export NAMESPACE=llm-d-wide-ep
-    export MODEL_NAME="DeepSeek-R1-0528"
   ```
 - Install the Gateway API Inference Extension CRDs:
 
@@ -104,7 +94,7 @@ export PROVIDER_NAME=gke # options: none, gke, agentgateway, istio
 helm install ${GUIDE_NAME} \
     oci://registry.k8s.io/gateway-api-inference-extension/charts/inferencepool  \
     -f guides/recipes/scheduler/base.values.yaml \
-    -f guides/${GUIDE_NAME}/scheduler/wide-ep-lws.values.yaml \
+    -f guides/${GUIDE_NAME}/scheduler/${GUIDE_NAME}.values.yaml \
     --set provider.name=${PROVIDER_NAME} \
     --set experimentalHttpRoute.enabled=true \
     --set experimentalHttpRoute.inferenceGatewayName=llm-d-inference-gateway \
@@ -118,33 +108,25 @@ helm install ${GUIDE_NAME} \
 
 Apply the Kustomize overlays for your specific backend (defaulting to GKE / H200):
 
-<!-- TABS:START -->
-
-<!-- TAB:GKE (H200):default -->
-#### GKE (H200)
-
 ```bash
-kubectl apply -n ${NAMESPACE} -k guides/${GUIDE_NAME}/modelserver/gke
+kubectl apply -n ${NAMESPACE} -k guides/${GUIDE_NAME}/modelserver/gpu/vllm/gke
 ```
 
-<!-- TAB:GKE (B200) -->
-#### GKE (B200)
+<summary><h4> Click here for other deployment environemnts </h4></summary>
 
+To deploy on GKE with B200:
 ```bash
-# Deploy on GKE for B200 on the a4 instance type to work around a known vLLM memory issue
-kubectl apply -n ${NAMESPACE} -k guides/${GUIDE_NAME}/modelserver/gke-a4
+kubectl apply -n ${NAMESPACE} -k guides/${GUIDE_NAME}/modelserver/gpu/vllm/gke-a4
+```
+To deploy on CoreWeave:
+```bash
+kubectl apply -n ${NAMESPACE} -k guides/${GUIDE_NAME}/modelserver/gpu/vllm/coreweave
 ```
 
-<!-- TAB:CoreWeave -->
-#### CoreWeave
+</details>
 
-```bash
-kubectl apply -n ${NAMESPACE} -k guides/${GUIDE_NAME}/modelserver/coreweave
-```
 
-<!-- TABS:END -->
-
-### 3. Enable monitoring (optional)
+### 3. (Optional) Enable monitoring
 
 > [!NOTE]
 > GKE provides [automatic application monitoring](https://docs.cloud.google.com/kubernetes-engine/docs/how-to/configure-automatic-application-monitoring) out of the box. The llm-d [Monitoring stack](../../docs/monitoring/README.md) is not required for GKE, but it is available if you prefer to use it.
@@ -154,6 +136,17 @@ kubectl apply -n ${NAMESPACE} -k guides/${GUIDE_NAME}/modelserver/coreweave
 
 ```bash
 kubectl apply -n ${NAMESPACE} -k guides/recipes/modelserver/components/monitoring
+```
+
+### 4. (Optional) Topology Aware Scheduling (TAS)
+
+For information on how to use topology aware scheduling using Kueue, see [LWS + TAS user guide](https://lws.sigs.k8s.io/docs/examples/tas/). To deploy the guide with TAS enabled, use the following command:
+
+```bash
+# H200 on GKE
+kubectl apply -n ${NAMESPACE} -k guides/${GUIDE_NAME}/modelserver/gpu/vllm/topology-aware/gke
+# B200 on GKE
+kubectl apply -n ${NAMESPACE} -k guides/${GUIDE_NAME}/modelserver/gpu/vllm/topology-aware/gke-a4
 ```
 
 ## Verification
@@ -192,7 +185,7 @@ kubectl run curl-debug --rm -it \
 curl -X POST http://${IP}/v1/completions \
     -H 'Content-Type: application/json' \
     -d '{
-        "model": "deepseek-ai/DeepSeek-R1-0528",
+        "model": "DeepSeek-R1-0528",
         "prompt": "How are you today?"
     }' | jq
 ```
@@ -246,7 +239,7 @@ To remove the deployed components:
 
 ```bash
 helm uninstall ${GUIDE_NAME} -n ${NAMESPACE}
-kubectl delete -n ${NAMESPACE} -k guides/${GUIDE_NAME}/modelserver/gpu/vllm/<gke|coreweave>
+kubectl delete -n ${NAMESPACE} -k guides/${GUIDE_NAME}/modelserver/<gke|coreweave>
 ```
 
 If you used Gateway Mode:
@@ -255,14 +248,6 @@ If you used Gateway Mode:
 helm uninstall ${GUIDE_NAME} -n ${NAMESPACE}
 # Delete gateway resources if applied
 ```
-
-## Customization
-
-For information on customizing a guide and tips to build your own, see [our docs](../04_customizing_a_guide.md)
-
-## Topology Aware Scheduling (TAS)
-
-For information on how to use topology aware scheduling using Kueue, see [LWS + TAS user guide](https://lws.sigs.k8s.io/docs/examples/tas/). The GKE example already has the required labels.
 
 ## Benchmarking Report
 
