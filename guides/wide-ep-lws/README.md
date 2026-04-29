@@ -242,13 +242,6 @@ helm uninstall ${GUIDE_NAME} -n ${NAMESPACE}
 kubectl delete -n ${NAMESPACE} -k guides/${GUIDE_NAME}/modelserver/<gke|coreweave>
 ```
 
-If you used Gateway Mode:
-
-```bash
-helm uninstall ${GUIDE_NAME} -n ${NAMESPACE}
-# Delete gateway resources if applied
-```
-
 ## Benchmarking Report
 
 We deployed the default wide-ep-lws user guide on GKE (`modelserver/gke-a4`).
