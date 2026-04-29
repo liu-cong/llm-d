@@ -81,7 +81,7 @@ helm install ${GUIDE_NAME} \
     oci://registry.k8s.io/gateway-api-inference-extension/charts/standalone \
     -f guides/recipes/scheduler/base.values.yaml \
     -f guides/${GUIDE_NAME}/scheduler/${GUIDE_NAME}.values.yaml \
-    -n ${NAMESPACE} --version v1.4.0
+    -n ${NAMESPACE} --version ${GAIE_VERSION}
 ```
 
 <details>
@@ -101,7 +101,7 @@ helm install ${GUIDE_NAME} \
     --set provider.name=${PROVIDER_NAME} \
     --set experimentalHttpRoute.enabled=true \
     --set experimentalHttpRoute.inferenceGatewayName=llm-d-inference-gateway \
-    -n ${NAMESPACE} --version v1.4.0
+    -n ${NAMESPACE} --version ${GAIE_VERSION}
 ```
 
 </details>
@@ -152,7 +152,7 @@ See [gke-patch/README.md](./modelserver/gpu/gke-patch/README.md) for more detail
 
 </details>
 
-### 3. Enable monitoring (optional)
+### 3. (Optional) Enable monitoring
 
 > [!NOTE]
 > GKE provides [automatic application monitoring](https://docs.cloud.google.com/kubernetes-engine/docs/how-to/configure-automatic-application-monitoring) out of the box. The llm-d [Monitoring stack](../../docs/monitoring/README.md) is not required for GKE, but it is available if you prefer to use it.

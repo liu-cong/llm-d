@@ -19,6 +19,25 @@ In this example, we will demonstrate a deployment of `DeepSeek-R1-0528` with:
 * 1 DP=16 Prefill Worker
 * 1 DP=16 Decode Worker
 
+## Default Configuration
+
+| Parameter          | Value                                                   |
+| ------------------ | ------------------------------------------------------- |
+| Model              | [DeepSeek-R1-0528](https://huggingface.co/deepseek-ai/DeepSeek-R1-0528) |
+| Data Parallelism | 16                                                       |
+| Total GPUs         | 32                                                      |
+
+### Supported Hardware Backends
+
+This guide includes configurations for the following accelerators:
+
+| Backend             | Directory                  | Notes                                      |
+| ------------------- | -------------------------- | ------------------------------------------ |
+| NVIDIA GPU (GKE)    | `modelserver/gke/`         | Default configuration (H200)               |
+| NVIDIA GPU (GKE A4) | `modelserver/gke-a4/`      | GKE B200 on a4 instance type               |
+| NVIDIA GPU (CoreWeave)| `modelserver/coreweave/`   | CoreWeave deployment                       |
+
+
 ## Hardware Requirements
 
 This guide requires 32 Nvidia H200 or B200 GPUs and InfiniBand or RoCE RDMA networking. Check `modelserver/base/decode.yaml` and `modelserver/base/prefill.yaml` for detailed resource requirements.
@@ -32,28 +51,74 @@ This guide requires 32 Nvidia H200 or B200 GPUs and InfiniBand or RoCE RDMA netw
 
 ## Prerequisites
 
-* Have the [proper client tools installed on your local system](../../helpers/client-setup/README.md) to use this guide.
-* You have deployed the [LeaderWorkerSet controller](https://lws.sigs.k8s.io/docs/installation/)
-* Configure and deploy your [Gateway control plane](../prereq/gateway-provider/README.md).
-* Have the [Monitoring stack](../../docs/monitoring/README.md) installed on your system.
-* Create a namespace for installation.
+- Have the [proper client tools installed on your local system](../../helpers/client-setup/README.md) to use this guide.
+- Checkout llm-d repo:
 
   ```bash
-  export NAMESPACE=llm-d-wide-ep # or any other namespace (shorter names recommended)
-  kubectl create namespace ${NAMESPACE}
+    export branch="main" # branch, tag, or commit hash
+    git clone https://github.com/llm-d/llm-d.git && cd llm-d && git checkout ${branch}
   ```
+- Set the following environment variables:
+  ```bash
+    export GAIE_VERSION=v1.4.0
+    export GUIDE_NAME="wide-ep-lws"
+    export NAMESPACE=llm-d-wide-ep
+    export MODEL_NAME="DeepSeek-R1-0528"
+  ```
+- Install the Gateway API Inference Extension CRDs:
 
-* [Create the `llm-d-hf-token` secret in your target namespace with the key `HF_TOKEN` matching a valid HuggingFace token](../../helpers/hf-token.md) to pull models.
+  ```bash
+    kubectl apply -k "https://github.com/kubernetes-sigs/gateway-api-inference-extension/config/crd?ref=${GAIE_VERSION}"
+  ```
+- You have deployed the [LeaderWorkerSet controller](https://lws.sigs.k8s.io/docs/installation/)
+- Create a target namespace for the installation:
+  ```bash
+      kubectl create namespace ${NAMESPACE}
+  ```
+- [Create the `llm-d-hf-token` secret in your target namespace with the key `HF_TOKEN` matching a valid HuggingFace token](../../helpers/hf-token.md) to pull models.
 
-## Installation
+## Installation Instructions
+
+### 1. Deploy the Inference Scheduler
+
+#### Standalone Mode
+
+This deploys the inference scheduler with an Envoy sidecar, it doesn't set up a Kubernetes Gateway.
 
 ```bash
-cd guides/wide-ep-lws/
+helm install ${GUIDE_NAME} \
+    oci://registry.k8s.io/gateway-api-inference-extension/charts/standalone \
+    -f guides/recipes/scheduler/base.values.yaml \
+    -f guides/${GUIDE_NAME}/scheduler/wide-ep.values.yaml \
+    -n ${NAMESPACE} --version ${GAIE_VERSION}
 ```
 
-### Deploy Model Servers
+<details>
+<summary><h4>Gateway Mode</h4></summary>
 
-GKE and CoreWeave are tested Kubernetes providers for this well-lit path. You can customize the manifests if you run on other Kubernetes providers.
+To use a Kubernetes Gateway managed proxy rather than the standalone version, follow these steps instead of applying the previous Helm chart:
+
+1. *Deploy a Kubernetes Gateway* by following one of [the gateway guides](../prereq/gateways).
+2. *Deploy the inference scheduler and an HTTPRoute* that connects it to the Gateway as follows:
+
+```bash
+export PROVIDER_NAME=gke # options: none, gke, agentgateway, istio
+helm install ${GUIDE_NAME} \
+    oci://registry.k8s.io/gateway-api-inference-extension/charts/inferencepool  \
+    -f guides/recipes/scheduler/base.values.yaml \
+    -f guides/${GUIDE_NAME}/scheduler/wide-ep.values.yaml \
+    --set provider.name=${PROVIDER_NAME} \
+    --set experimentalHttpRoute.enabled=true \
+    --set experimentalHttpRoute.inferenceGatewayName=llm-d-inference-gateway \
+    -n ${NAMESPACE} --version ${GAIE_VERSION}
+```
+
+</details>
+
+
+### 2. Deploy the Model Server
+
+Apply the Kustomize overlays for your specific backend (defaulting to GKE / H200):
 
 <!-- TABS:START -->
 
@@ -61,7 +126,7 @@ GKE and CoreWeave are tested Kubernetes providers for this well-lit path. You ca
 #### GKE (H200)
 
 ```bash
-kubectl apply -k ./manifests/modelserver/gke -n ${NAMESPACE}
+kubectl apply -n ${NAMESPACE} -k guides/${GUIDE_NAME}/modelserver/gke
 ```
 
 <!-- TAB:GKE (B200) -->
@@ -69,138 +134,143 @@ kubectl apply -k ./manifests/modelserver/gke -n ${NAMESPACE}
 
 ```bash
 # Deploy on GKE for B200 on the a4 instance type to work around a known vLLM memory issue
-kubectl apply -k ./manifests/modelserver/gke-a4 -n ${NAMESPACE}
+kubectl apply -n ${NAMESPACE} -k guides/${GUIDE_NAME}/modelserver/gke-a4
 ```
 
 <!-- TAB:CoreWeave -->
 #### CoreWeave
 
 ```bash
-kubectl apply -k ./manifests/modelserver/coreweave  -n ${NAMESPACE}
+kubectl apply -n ${NAMESPACE} -k guides/${GUIDE_NAME}/modelserver/coreweave
 ```
 
 <!-- TABS:END -->
 
-### Deploy InferencePool
+### 3. Enable monitoring (optional)
 
-Select the provider-specific Helm command using the tabs below.
+> [!NOTE]
+> GKE provides [automatic application monitoring](https://docs.cloud.google.com/kubernetes-engine/docs/how-to/configure-automatic-application-monitoring) out of the box. The llm-d [Monitoring stack](../../docs/monitoring/README.md) is not required for GKE, but it is available if you prefer to use it.
 
-> [!WARNING]
-> `kgateway` is deprecated in llm-d and will be removed in the next release. Prefer `agentgateway` for new self-installed inference deployments. The current Gateway API Inference Extension chart uses `provider.name=none` for the `agentgateway` path; see the upstream [`inferencepool` chart values for v1.4.0](https://github.com/kubernetes-sigs/gateway-api-inference-extension/blob/v1.4.0/config/charts/inferencepool/values.yaml).
-
-<!-- TABS:START -->
-
-<!-- TAB:GKE:default -->
-#### GKE
+- Install the [Monitoring stack](../../docs/monitoring/README.md).
+- Deploy the monitoring resources for this guide.
 
 ```bash
-helm install llm-d-infpool \
-  -n ${NAMESPACE} \
-  -f ./manifests/inferencepool.values.yaml \
-  --set "provider.name=gke" \
-  oci://registry.k8s.io/gateway-api-inference-extension/charts/inferencepool \
-  --version v1.4.0
+kubectl apply -n ${NAMESPACE} -k guides/recipes/modelserver/components/monitoring
 ```
 
-<!-- TAB:Istio -->
-#### Istio
+## Verification
+
+### 1. Get the IP of the Proxy
+
+**Standalone Mode**
 
 ```bash
-helm install llm-d-infpool \
-  -n ${NAMESPACE} \
-  -f ./manifests/inferencepool.values.yaml \
-  --set "provider.name=istio" \
-  oci://registry.k8s.io/gateway-api-inference-extension/charts/inferencepool \
-  --version v1.4.0
+export IP=$(kubectl get service ${GUIDE_NAME}-epp -n ${NAMESPACE} -o jsonpath='{.spec.clusterIP}')
 ```
 
-<!-- TAB:Agentgateway -->
-#### Agentgateway
+<details>
+<summary> <b>Gateway Mode</b> </summary>
 
 ```bash
-helm install llm-d-infpool \
-  -n ${NAMESPACE} \
-  -f ./manifests/inferencepool.values.yaml \
-  --set "provider.name=none" \
-  oci://registry.k8s.io/gateway-api-inference-extension/charts/inferencepool \
-  --version v1.4.0
+export IP=$(kubectl get gateway llm-d-inference-gateway -n ${NAMESPACE} -o jsonpath='{.status.addresses[0].value}')
 ```
+</details>
 
-<!-- TABS:END -->
+### 2. Send Test Requests
 
-### Deploy Gateway and HTTPRoute
-
-Deploy the Gateway and HTTPRoute using the [gateway recipe](../recipes/gateway/README.md).
-
-### Gateway options
-
-To see what gateway options are supported refer to our [gateway provider prereq doc](../prereq/gateway-provider/README.md#supported-providers). Gateway configurations per provider are tracked in the [gateway-configurations directory](../prereq/gateway-provider/common-configurations/).
-
-You can also customize your gateway, for more information on how to do that see our [gateway customization docs](../04_customizing_a_guide.md).
-
-## Tuning Selective PD
-
-As with PD, the `wide-ep-lws` guide supports selective PD. For information on this refer to [this section of the PD docs](../pd-disaggregation/README.md#tuning-selective-pd).
-
-## Verifying the installation
-
-* Firstly, you should be able to list all helm releases installed into your chosen namespace:
+**Open a temporary interactive shell inside the cluster:**
 
 ```bash
-helm list -n ${NAMESPACE}
-NAME            NAMESPACE       REVISION    UPDATED                                 STATUS      CHART                       APP VERSION
-llm-d-infpool   llm-d-wide-ep   1           2025-08-24 13:14:53.355639 -0700 PDT    deployed    inferencepool-v1.4.0   v0.3.0
+kubectl run curl-debug --rm -it \
+    --image=cfmanteiga/alpine-bash-curl-jq \
+    --env="IP=$IP" \
+    --env="NAMESPACE=$NAMESPACE" \
+    -- /bin/bash
 ```
 
-* Out of the box with this example you should have the following resources (if using Istio):
+**Send a completion request:**
 
 ```bash
-kubectl get all -n ${NAMESPACE}
-NAME                                                         READY   STATUS    RESTARTS   AGE
-pod/infra-wide-ep-inference-gateway-istio-74d5c66c86-h5mfn   1/1     Running   0          2m22s
-pod/wide-ep-llm-d-decode-0                                   2/2     Running   0          2m13s
-pod/wide-ep-llm-d-decode-0-1                                 2/2     Running   0          2m13s
-pod/llm-d-infpool-epp-84dd98f75b-r6lvh                       1/1     Running   0          2m14s
-pod/wide-ep-llm-d-prefill-0                                  1/1     Running   0          2m13s
-pod/wide-ep-llm-d-prefill-0-1                                1/1     Running   0          2m13s
-
-
-NAME                                            TYPE           CLUSTER-IP    EXTERNAL-IP   PORT(S)                        AGE
-service/infra-wide-ep-inference-gateway-istio   ClusterIP      10.16.1.34    10.16.4.2     15021:30312/TCP,80:33662/TCP   2m22s
-service/wide-ep-ip-1e480070                     ClusterIP      None          <none>        54321/TCP                      2d4h
-service/wide-ep-llm-d-decode                    ClusterIP      None          <none>        <none>                         2m13s
-service/llm-d-infpool-epp                       ClusterIP      10.16.1.137   <none>        9002/TCP                       2d4h
-service/wide-ep-llm-d-prefill                   ClusterIP      None          <none>        <none>                         2m13s
-
-NAME                                                    READY   UP-TO-DATE   AVAILABLE   AGE
-deployment.apps/infra-wide-ep-inference-gateway-istio   1/1     1            1           2m22s
-deployment.apps/llm-d-infpool-epp                       1/1     1            1           2m14s
-
-NAME                                                               DESIRED   CURRENT   READY   AGE
-replicaset.apps/infra-wide-ep-inference-gateway-istio-74d5c66c86   1         1         1       2m22s
-replicaset.apps/llm-d-infpool-epp-55bb9857cf                       1         1         1       2m14s
-
-NAME                                                      READY   AGE
-statefulset.apps/wide-ep-llm-d-decode     1/1     2m13s
-statefulset.apps/wide-ep-llm-d-decode-0   1/1     2m13s
-statefulset.apps/wide-ep-llm-d-prefill    1/1     2m13s
-statefulset.apps/wide-ep-llm-d-prefill-1  1/1     2m13s
+curl -X POST http://${IP}/v1/completions \
+    -H 'Content-Type: application/json' \
+    -d '{
+        "model": "DeepSeek-R1-0528",
+        "prompt": "How are you today?"
+    }' | jq
 ```
-
-**_NOTE:_** This assumes no other guide deployments in your given `${NAMESPACE}` and you have not changed the default release names via the `${RELEASE_NAME}` environment variable.
-
-## Using the stack
-
-For instructions on getting started making inference requests see [our docs](../02_verifying_a_guide.md)
-
-**_NOTE:_** This example particularly benefits from utilizing stern as described in the [getting-started-inferencing docs](../02_verifying_a_guide.md#following-logs-for-requests), because while we only have 3 inferencing pods, it has 16 vllm servers or ranks.
-
-**_NOTE:_** Compared to the other examples, this one takes anywhere between 7-10 minutes for the vllm API servers to startup so this might take longer before you can interact with this example.
 
 ## Benchmarking
 
-### Overview
-We deployed the default wide-ep-lws user guide on GKE (`./manifests/modelserver/gke-a4`).
+The benchmark launches a pod (`llmdbench-harness-launcher`) that uses `inference-perf` with a template workload. The results will be saved to a local folder by using the `-o` flag of `run_only.sh`.
+
+### 1. Prepare the Benchmarking Suite
+
+- Download the benchmark script:
+
+  ```bash
+  curl -L -O https://raw.githubusercontent.com/llm-d/llm-d-benchmark/main/existing_stack/run_only.sh
+  chmod u+x run_only.sh
+  ```
+
+- [Create HuggingFace token](../../helpers/hf-token.md)
+
+### 2. Download the Workload Template
+
+The template is located at `guides/wide-ep-lws/benchmark-templates/guide.yaml`. You can also download it if needed:
+
+```bash
+curl -LJO "https://raw.githubusercontent.com/llm-d/llm-d/main/guides/${GUIDE_NAME}/benchmark-templates/guide.yaml"
+```
+
+*Note: You may need to remove the first line (`TBD`) to enable the template.*
+
+### 3. Execute Benchmark
+
+```bash
+export IP=$(kubectl get service ${GUIDE_NAME}-epp  -n ${NAMESPACE} -o jsonpath='{.spec.clusterIP}')
+```
+
+<details>
+<summary> <b>Click here for Gateway Mode</b> </summary>
+
+```bash
+export IP=$(kubectl get gateway llm-d-inference-gateway  -n ${NAMESPACE} -o jsonpath='{.status.addresses[0].value}')
+```
+</details>
+
+```bash
+export BENCHMARK_PVC=your-pvc-name # Specify your PVC for results
+envsubst < guide.yaml > config.yaml
+./run_only.sh -c config.yaml -o ./results
+```
+
+## Cleanup
+
+To remove the deployed components:
+
+```bash
+helm uninstall ${GUIDE_NAME} -n ${NAMESPACE}
+kubectl delete -n ${NAMESPACE} -k guides/${GUIDE_NAME}/modelserver/<gke|coreweave>
+```
+
+If you used Gateway Mode:
+
+```bash
+helm uninstall ${GUIDE_NAME} -n ${NAMESPACE}
+# Delete gateway resources if applied
+```
+
+## Customization
+
+For information on customizing a guide and tips to build your own, see [our docs](../04_customizing_a_guide.md)
+
+## Topology Aware Scheduling (TAS)
+
+For information on how to use topology aware scheduling using Kueue, see [LWS + TAS user guide](https://lws.sigs.k8s.io/docs/examples/tas/). The GKE example already has the required labels.
+
+## Benchmarking Report
+
+We deployed the default wide-ep-lws user guide on GKE (`modelserver/gke-a4`).
 
 * Provider: GKE
 * Prefill: 1 instance with EP=16
@@ -209,28 +279,14 @@ We deployed the default wide-ep-lws user guide on GKE (`./manifests/modelserver/
 
 We use the [inference-perf](https://github.com/kubernetes-sigs/inference-perf/tree/main) benchmark tool to generate random datasets with 1K input length and 1K output length. This benchmark targets batch use case and we aim to find the maximum throughput by sweeping from lower to higher request rates up to 250 QPS.
 
-### Run Benchmark
-
-1. Deploy the wide-ep-lws stack following the Installation steps above. Once the stack is ready, obtain the gateway IP:
-
-```bash
-export GATEWAY_IP=$(kubectl get gateway/llm-d-inference-gateway -n ${NAMESPACE} -o jsonpath='{.status.addresses[0].value}')
-```
-
-2. Follow the [benchmark guide](../../helpers/benchmark.md) to deploy the benchmark tool and analyze the benchmark results. Notably, select the corresponding benchmark template:
-
-```
-export BENCHMARK_TEMPLATE="${BENCH_TEMPLATE_DIR}"/wide_ep_template.yaml
-```
-
 ### Results
 
-<img src="throughput_vs_qps.png" width="900" alt="Throughput vs QPS">
-<img src="throughput_vs_latency.png" width="300" alt="Throughput vs Latency">
+<img src="./benchmark-results/throughput_vs_qps.png" width="900" alt="Throughput vs QPS">
+<img src="./benchmark-results/throughput_vs_latency.png" width="300" alt="Throughput vs Latency">
 
 At request rate 250, we achieved the max throughput:
 
-```
+```json
 "throughput": {
     "input_tokens_per_sec": 51218.79261732335,
     "output_tokens_per_sec": 49783.58426326592,
@@ -241,22 +297,3 @@ At request rate 250, we achieved the max throughput:
 
 This equals to 3200 input tokens/s/GPU and 3100 output tokens/s/GPU.
 
-## Cleanup
-
-To remove the deployment:
-
-```bash
-# From examples/wide-ep-lws
-helm uninstall llm-d-infpool -n ${NAMESPACE}
-kubectl delete -k ./manifests/modelserver/<gke|coreweave> -n ${NAMESPACE}
-# Supported self-installed inference gateway recipe paths are agentgateway (preferred) and kgateway (deprecated migration path).
-kubectl delete -k ../recipes/gateway/<gke-l7-regional-external-managed|istio|agentgateway|agentgateway-openshift|kgateway|kgateway-openshift> -n ${NAMESPACE}
-```
-
-## Customization
-
-For information on customizing a guide and tips to build your own, see [our docs](../04_customizing_a_guide.md)
-
-## Topology Aware Scheduling (TAS)
-
-For information on how to use topology aware scheduling using Kueue, see [LWS + TAS user guide](https://lws.sigs.k8s.io/docs/examples/tas/). The GKE example already has the required labels.

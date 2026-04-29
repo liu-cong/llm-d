@@ -1,0 +1,41 @@
+inferenceExtension:
+  extraServicePorts:
+    - name: http
+      port: 80
+      protocol: TCP
+      targetPort: 8081
+  pluginsConfigFile: "custom-plugins.yaml"
+  pluginsCustomConfig:
+    custom-plugins.yaml: |
+      # ALWAYS DO PD IN THIS EXAMPLE (THRESHOLD 0)
+      # This example uses random routing
+      # since it's not yet possible to route to individual DP ranks
+      apiVersion: inference.networking.x-k8s.io/v1alpha1
+      kind: EndpointPickerConfig
+      plugins:
+      - type: prefill-header-handler
+      - type: prefill-filter
+      - type: decode-filter
+      - type: random-picker
+        parameters:
+          maxNumOfEndpoints: 1
+      - type: disagg-profile-handler
+        parameters:
+          threshold: 0
+          hashBlockSize: 5
+      schedulingProfiles:
+      - name: prefill
+        plugins:
+        - pluginRef: prefill-filter
+        - pluginRef: random-picker
+      - name: decode
+        plugins:
+        - pluginRef: decode-filter
+        - pluginRef: random-picker
+
+inferencePool:
+  modelServers:
+    matchLabels:
+      llm-d.ai/inference-serving: "true"
+      llm-d.ai/guide: "wide-ep-lws"
+      llm-d.ai/model: DeepSeek-R1-0528

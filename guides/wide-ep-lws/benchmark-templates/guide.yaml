@@ -1,9 +1,8 @@
-TBD   # Remove this line to enable the template
 endpoint:
   stack_name: &stack_name wide-ep-qwen-30B-A3B  # user defined name for the stack (results prefix)
-  model: &model Qwen/Qwen3-30B-A3B       # Exact HuggingFace model name. Must match stack deployed.
+  model: &model deepseek-ai/DeepSeek-R1-0528       # Exact HuggingFace model name. Must match stack deployed.
   namespace: &namespace ${NAMESPACE}  # Namespace where stack is deployed
-  base_url: &url http://${GATEWAY_IP}:80  # Base URL of inference endpoint
+  base_url: &url http://${IP}:8081
   hf_token_secret: llm-d-hf-token     # The name of secret that contains the HF token of the stack
 
 control:

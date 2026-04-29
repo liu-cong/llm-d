@@ -5,7 +5,7 @@ resources:
 patches:
   - target:
       kind: LeaderWorkerSet
-      name: wide-ep-llm-d-decode
+      name: wide-ep-lws-nvidia-gpu-vllm-decode
     patch: |-
       # As per https://github.com/vllm-project/vllm/issues/25597 B200 devices may need
       # to set a lower value for gpu-memory-utilization bytes to avoid OOMs
