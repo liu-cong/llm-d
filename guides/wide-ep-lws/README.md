@@ -31,16 +31,16 @@ In this example, we will demonstrate a deployment of `DeepSeek-R1-0528` with:
 
 This guide includes configurations for the following accelerators:
 
-| Backend             | Directory                  | Notes                                      |
-| ------------------- | -------------------------- | ------------------------------------------ |
-| NVIDIA GPU (GKE)    | `modelserver/gke/`         | Default configuration (H200)               |
-| NVIDIA GPU (GKE A4) | `modelserver/gke-a4/`      | GKE B200 on a4 instance type               |
-| NVIDIA GPU (CoreWeave)| `modelserver/coreweave/`   | CoreWeave deployment                       |
+| Backend               | Directory                           | Notes                        |
+| --------------------- | ----------------------------------- | ---------------------------- |
+| NVIDIA GPU (GKE)      | `modelserver/gpu/vllm/gke/`         | Default configuration (H200) |
+| NVIDIA GPU (GKE A4)   | `modelserver/gpu/vllm/gke-a4/`      | GKE B200 on a4 instance type |
+| NVIDIA GPU (CoreWeave)| `modelserver/gpu/vllm/coreweave/`   | CoreWeave deployment         |
 
 
 ## Hardware Requirements
 
-This guide requires 32 Nvidia H200 or B200 GPUs and InfiniBand or RoCE RDMA networking. Check `modelserver/base/decode.yaml` and `modelserver/base/prefill.yaml` for detailed resource requirements.
+This guide requires 32 Nvidia H200 or B200 GPUs and InfiniBand or RoCE RDMA networking. Check `modelserver/gpu/vllm/base/decode.yaml` and `modelserver/gpu/vllm/base/prefill.yaml` for detailed resource requirements.
 
 > [!NOTE]
 > The pods leveraging inter-node EP must be deployed in a cluster environment with full mesh
@@ -222,8 +222,6 @@ The template is located at `guides/wide-ep-lws/benchmark-templates/guide.yaml`. 
 curl -LJO "https://raw.githubusercontent.com/llm-d/llm-d/main/guides/${GUIDE_NAME}/benchmark-templates/guide.yaml"
 ```
 
-*Note: You may need to remove the first line (`TBD`) to enable the template.*
-
 ### 3. Execute Benchmark
 
 ```bash
@@ -250,7 +248,7 @@ To remove the deployed components:
 
 ```bash
 helm uninstall ${GUIDE_NAME} -n ${NAMESPACE}
-kubectl delete -n ${NAMESPACE} -k guides/${GUIDE_NAME}/modelserver/<gke|coreweave>
+kubectl delete -n ${NAMESPACE} -k guides/${GUIDE_NAME}/modelserver/gpu/vllm/<gke|coreweave>
 ```
 
 If you used Gateway Mode:
