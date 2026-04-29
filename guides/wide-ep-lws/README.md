@@ -52,6 +52,7 @@ This guide includes configurations for the following accelerators:
     export GAIE_VERSION=v1.4.0
     export GUIDE_NAME="wide-ep-lws"
     export NAMESPACE=llm-d-wide-ep
+    export MODEL=deepseek-ai/DeepSeek-R1-0528
   ```
 - Install the Gateway API Inference Extension CRDs:
 
@@ -185,7 +186,7 @@ kubectl run curl-debug --rm -it \
 curl -X POST http://${IP}/v1/completions \
     -H 'Content-Type: application/json' \
     -d '{
-        "model": "DeepSeek-R1-0528",
+        "model": "deepseek-ai/DeepSeek-R1-0528",
         "prompt": "How are you today?"
     }' | jq
 ```
@@ -203,8 +204,6 @@ The benchmark launches a pod (`llmdbench-harness-launcher`) that uses `inference
   chmod u+x run_only.sh
   ```
 
-- [Create HuggingFace token](../../helpers/hf-token.md)
-
 ### 2. Download the Workload Template
 
 The template is located at `guides/wide-ep-lws/benchmark-templates/guide.yaml`. You can also download it if needed:
@@ -216,19 +215,6 @@ curl -LJO "https://raw.githubusercontent.com/llm-d/llm-d/main/guides/${GUIDE_NAM
 ### 3. Execute Benchmark
 
 ```bash
-export IP=$(kubectl get service ${GUIDE_NAME}-epp  -n ${NAMESPACE} -o jsonpath='{.spec.clusterIP}')
-```
-
-<details>
-<summary> <b>Click here for Gateway Mode</b> </summary>
-
-```bash
-export IP=$(kubectl get gateway llm-d-inference-gateway  -n ${NAMESPACE} -o jsonpath='{.status.addresses[0].value}')
-```
-</details>
-
-```bash
-export BENCHMARK_PVC=your-pvc-name # Specify your PVC for results
 envsubst < guide.yaml > config.yaml
 ./run_only.sh -c config.yaml -o ./results
 ```
