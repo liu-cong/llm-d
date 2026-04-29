@@ -31,17 +31,13 @@ jobs:
       guide_name: wide-ep-lws
       guide_path: guides/wide-ep-lws
       namespace: llm-d-nightly-wide-ep-gke
-      helmfile_env: gke
-      gateway_type: gke
       gke_cluster_name: llm-d-e2e-us-south1-2
       gke_cluster_zone: us-south1
-      required_gpus: 2
-      recommended_gpus: 2
-      accelerator_type: L4
+      required_gpus: 32
+      recommended_gpus: 32
+      accelerator_type: H200
       pod_wait_timeout: '35m'
       pod_readiness_delay: 480
-      httproute_file: ''
-      # Install LWS CRD before deployment
       pre_deploy_script: |
         echo "Installing LeaderWorkerSet for wide-ep-lws..."
         if ! kubectl get crd leaderworkersets.leaderworkerset.x-k8s.io &>/dev/null; then
@@ -77,7 +73,6 @@ jobs:
         echo "Deployment complete"
       # Wide-EP-specific validation: check prefill + decode pods
       e2e_validate_args: '-v'
-      image_override: 'ghcr.io/llm-d/llm-d-cuda-dev:latest'
       allow_gpu_preemption: true
       skip_cleanup: ${{ github.event.inputs.skip_cleanup == 'true' }}
     secrets: inherit

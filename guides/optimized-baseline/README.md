@@ -114,6 +114,18 @@ Apply the Kustomize overlays for your specific backend (defaulting to NVIDIA GPU
 kubectl apply -n ${NAMESPACE} -k guides/${GUIDE_NAME}/modelserver/gpu/vllm/
 ```
 
+<summary><h4>If you run into NCCL errors on GKE</h4></summary>
+
+Try applying the patch:
+
+```bash
+kubectl apply -n ${NAMESPACE} -k guides/${GUIDE_NAME}/modelserver/gpu/gke-patch/vllm/
+```
+
+See [gke-patch/README.md](./modelserver/gpu/gke-patch/README.md) for more details.
+
+</details>
+
 <details>
 <summary><h4>Other Accelerators</h4></summary>
 
@@ -136,18 +148,6 @@ kubectl apply -n ${NAMESPACE} -k guides/${GUIDE_NAME}/modelserver/tpu-v7/vllm/
 # CPU
 kubectl apply -n ${NAMESPACE} -k guides/${GUIDE_NAME}/modelserver/cpu/vllm/
 ```
-
-</details>
-
-<summary><h4>If you run into NCCL errors on GKE</h4></summary>
-
-Try applying the patch:
-
-```bash
-kubectl apply -n ${NAMESPACE} -k guides/${GUIDE_NAME}/modelserver/gpu/gke-patch/vllm/
-```
-
-See [gke-patch/README.md](./modelserver/gpu/gke-patch/README.md) for more details.
 
 </details>
 
