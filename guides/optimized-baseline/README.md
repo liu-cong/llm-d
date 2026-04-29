@@ -55,7 +55,6 @@ This guide includes configurations for the following accelerators:
     export GAIE_VERSION=v1.4.0
     export GUIDE_NAME="optimized-baseline"
     export NAMESPACE=llm-d-optimized-baseline
-    export MODEL_NAME="Qwen/Qwen3-32B"
   ```
 - Install the Gateway API Inference Extension CRDs:
 
