@@ -38,6 +38,7 @@ jobs:
       accelerator_type: H200
       pod_wait_timeout: '35m'
       pod_readiness_delay: 480
+      gateway_host: 'wide-ep-lws-epp'
       pre_deploy_script: |
         echo "Installing LeaderWorkerSet for wide-ep-lws..."
         if ! kubectl get crd leaderworkersets.leaderworkerset.x-k8s.io &>/dev/null; then
