@@ -89,7 +89,7 @@ This deploys the inference scheduler with an Envoy sidecar, it doesn't set up a 
 helm install ${GUIDE_NAME} \
     oci://registry.k8s.io/gateway-api-inference-extension/charts/standalone \
     -f guides/recipes/scheduler/base.values.yaml \
-    -f guides/${GUIDE_NAME}/scheduler/wide-ep.values.yaml \
+    -f guides/${GUIDE_NAME}/scheduler/${GUIDE_NAME}.values.yaml \
     -n ${NAMESPACE} --version ${GAIE_VERSION}
 ```
 
@@ -106,7 +106,7 @@ export PROVIDER_NAME=gke # options: none, gke, agentgateway, istio
 helm install ${GUIDE_NAME} \
     oci://registry.k8s.io/gateway-api-inference-extension/charts/inferencepool  \
     -f guides/recipes/scheduler/base.values.yaml \
-    -f guides/${GUIDE_NAME}/scheduler/wide-ep.values.yaml \
+    -f guides/${GUIDE_NAME}/scheduler/wide-ep-lws.values.yaml \
     --set provider.name=${PROVIDER_NAME} \
     --set experimentalHttpRoute.enabled=true \
     --set experimentalHttpRoute.inferenceGatewayName=llm-d-inference-gateway \
@@ -194,7 +194,7 @@ kubectl run curl-debug --rm -it \
 curl -X POST http://${IP}/v1/completions \
     -H 'Content-Type: application/json' \
     -d '{
-        "model": "DeepSeek-R1-0528",
+        "model": "deepseek-ai/DeepSeek-R1-0528",
         "prompt": "How are you today?"
     }' | jq
 ```

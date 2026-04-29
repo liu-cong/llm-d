@@ -1,8 +1,8 @@
 endpoint:
-  stack_name: &stack_name wide-ep-qwen-30B-A3B  # user defined name for the stack (results prefix)
+  stack_name: &stack_name wide-ep-deepseek-r1  # user defined name for the stack (results prefix)
   model: &model deepseek-ai/DeepSeek-R1-0528       # Exact HuggingFace model name. Must match stack deployed.
   namespace: &namespace ${NAMESPACE}  # Namespace where stack is deployed
-  base_url: &url http://${IP}:8081
+  base_url: &url http://${IP}:80
   hf_token_secret: llm-d-hf-token     # The name of secret that contains the HF token of the stack
 
 control:
