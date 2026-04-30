@@ -10,9 +10,6 @@ This guide demonstrates how to deploy DeepSeek-R1-0528 using vLLM's P/D disaggre
 * a 32xH200 cluster on GKE with RoCE networking
 * a 32xB200 cluster on GKE with RoCE networking
 
-> [!WARNING] 
-> We are still investigating and optimizing performance for other hardware and networking configurations
-
 ## Default Configuration
 
 | Parameter                | Value                                                   |
@@ -45,8 +42,8 @@ This guide includes configurations for the following accelerators:
 - Checkout llm-d repo:
 
   ```bash
-    export branch="main" # branch, tag, or commit hash
-    git clone https://github.com/llm-d/llm-d.git && cd llm-d && git checkout ${branch}
+  export branch="example" # example: main, v0.7.0
+  git clone https://github.com/llm-d/llm-d.git && cd llm-d && git checkout ${branch}
   ```
 - Set the following environment variables:
   ```bash
@@ -63,7 +60,7 @@ This guide includes configurations for the following accelerators:
 - You have deployed the [LeaderWorkerSet controller](https://lws.sigs.k8s.io/docs/installation/)
 - Create a target namespace for the installation:
   ```bash
-      kubectl create namespace ${NAMESPACE}
+  kubectl create namespace ${NAMESPACE}
   ```
 - [Create the `llm-d-hf-token` secret in your target namespace with the key `HF_TOKEN` matching a valid HuggingFace token](../../helpers/hf-token.md) to pull models.
 
@@ -83,8 +80,7 @@ helm install ${GUIDE_NAME} \
     -n ${NAMESPACE} --version ${GAIE_VERSION}
 ```
 
-<details>
-<summary><h4>Gateway Mode</h4></summary>
+#### Gateway Mode
 
 To use a Kubernetes Gateway managed proxy rather than the standalone version, follow these steps instead of applying the previous Helm chart:
 
@@ -103,30 +99,14 @@ helm install ${GUIDE_NAME} \
     -n ${NAMESPACE} --version ${GAIE_VERSION}
 ```
 
-</details>
-
-
 ### 2. Deploy the Model Server
 
-Apply the Kustomize overlays for your specific backend (defaulting to GKE / H200):
+Apply the Kustomize overlays for your specific backend:
 
 ```bash
-kubectl apply -n ${NAMESPACE} -k guides/${GUIDE_NAME}/modelserver/gpu/vllm/gke
+export INFRA_PROVIDER=gke # options: gke (H200), gke-a4 (B200), coreweave
+kubectl apply -n ${NAMESPACE} -k guides/${GUIDE_NAME}/modelserver/gpu/vllm/${INFRA_PROVIDER}
 ```
-
-<details>
-<summary><h4> Click here for other deployment environemnts </h4></summary>
-
-To deploy on GKE with B200:
-```bash
-kubectl apply -n ${NAMESPACE} -k guides/${GUIDE_NAME}/modelserver/gpu/vllm/gke-a4
-```
-To deploy on CoreWeave:
-```bash
-kubectl apply -n ${NAMESPACE} -k guides/${GUIDE_NAME}/modelserver/gpu/vllm/coreweave
-```
-
-</details>
 
 
 ### 3. (Optional) Enable monitoring
@@ -138,7 +118,7 @@ kubectl apply -n ${NAMESPACE} -k guides/${GUIDE_NAME}/modelserver/gpu/vllm/corew
 - Deploy the monitoring resources for this guide.
 
 ```bash
-kubectl apply -n ${NAMESPACE} -k guides/recipes/modelserver/components/monitoring
+kubectl apply -n ${NAMESPACE} -k guides/recipes/modelserver/components/monitoring-pd
 ```
 
 ### 4. (Optional) Topology Aware Scheduling (TAS)
