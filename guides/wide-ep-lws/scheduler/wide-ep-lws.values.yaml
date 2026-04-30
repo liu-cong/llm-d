@@ -4,6 +4,39 @@ inferenceExtension:
       port: 80
       protocol: TCP
       targetPort: 8081
+  # Once we graduate DP aware routing, we should use pd.values.yaml from the base recipe.
+  pluginsConfigFile: "wide-ep-lws-config.yaml"
+  pluginsCustomConfig:
+    wide-ep-lws-config.yaml: |
+      apiVersion: inference.networking.x-k8s.io/v1alpha1
+      kind: EndpointPickerConfig
+      featureGates:
+      - prepareDataPlugins
+      plugins:
+      - type: disagg-headers-handler
+      - type: always-disagg-pd-decider
+      - type: disagg-profile-handler
+        parameters:
+          deciderPluginName: always-disagg-pd-decider
+      - type: prefill-filter
+      - type: decode-filter
+      - type: queue-scorer
+      - type: kv-cache-utilization-scorer
+      - type: active-request-scorer
+      - type: max-score-picker
+      schedulingProfiles:
+      - name: prefill
+        plugins:
+        - pluginRef: prefill-filter
+        - pluginRef: queue-scorer
+        - pluginRef: kv-cache-utilization-scorer
+        - pluginRef: max-score-picker
+      - name: decode
+        plugins:
+        - pluginRef: decode-filter
+        - pluginRef: active-request-scorer
+        - pluginRef: max-score-picker
+
 
 inferencePool:
   modelServers:
