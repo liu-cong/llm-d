@@ -12,7 +12,8 @@ This guide demonstrates how to deploy DeepSeek-R1-0528 using vLLM's P/D disaggre
 * a 32xH200 cluster on GKE with RoCE networking
 * a 32xB200 cluster on GKE with RoCE networking
 
-> WARNING: We are still investigating and optimizing performance for other hardware and networking configurations
+> [!WARNING] 
+> We are still investigating and optimizing performance for other hardware and networking configurations
 
 ## Default Configuration
 
