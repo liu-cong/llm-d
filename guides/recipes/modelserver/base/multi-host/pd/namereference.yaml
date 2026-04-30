@@ -1,5 +1,0 @@
-nameReference:
-  - kind: ServiceAccount
-    fieldSpecs:
-      - path: spec/leaderWorkerTemplate/workerTemplate/spec/serviceAccountName
-        kind: LeaderWorkerSet
