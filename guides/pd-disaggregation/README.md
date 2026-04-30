@@ -74,11 +74,11 @@ kubectl create namespace ${NAMESPACE}
 
 ## Installation Instructions
 
-### 1. Deploy the Inference Scheduler
+### 1. Deploy the llm-d Router
 
 #### Standalone Mode
 
-This deploys the inference scheduler with an Envoy sidecar, it doesn't set up a Kubernetes Gateway.
+This deploys the llm-d Router with an Envoy sidecar, it doesn't set up a Kubernetes Gateway.
 
 ```bash
 helm install ${GUIDE_NAME} \
@@ -95,7 +95,7 @@ helm install ${GUIDE_NAME} \
 To employ a Kubernetes Gateway managed proxy instead of the standalone one, then instead of applying the standalone helm chart above, do the following:
 
 1. *Deploy a Kubernetes Gateway*. Follow [the gateway guides](../prereq/gateways) for step by step deployment for a Gateway named `llm-d-inference-gateway`. You only need to create one Gateway for your cluster, all guides can share one Gateway each with a separate HTTPRoute. 
-2. *Deploy the Inference Scheduler and HTTPRoute*. The following deploys the inference scheduler with an HttpRoute that connects it to the Gateway created in the previous step (set `provider.name` to the gateway provider you deployed):
+2. *Deploy the llm-d Router and an HTTPRoute*. The following deploys the llm-d Router with an HttpRoute that connects it to the Gateway created in the previous step (set `provider.name` to the gateway provider you deployed):
 
 ```bash
 export PROVIDER_NAME=gke # other na, agentgateway or istio

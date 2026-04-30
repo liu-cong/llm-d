@@ -66,11 +66,11 @@ This guide includes configurations for the following accelerators:
 
 ## Installation Instructions
 
-### 1. Deploy the Inference Scheduler
+### 1. Deploy the llm-d Router
 
 #### Standalone Mode
 
-This deploys the inference scheduler with an Envoy sidecar, it doesn't set up a Kubernetes Gateway.
+This deploys the llm-d Router with an Envoy sidecar, it doesn't set up a Kubernetes Gateway.
 
 ```bash
 helm install ${GUIDE_NAME} \
@@ -87,7 +87,7 @@ helm install ${GUIDE_NAME} \
 To use a Kubernetes Gateway managed proxy rather than the standalone version, follow these steps instead of applying the previous Helm chart:
 
 1. *Deploy a Kubernetes Gateway* by following one of [the gateway guides](../prereq/gateways).
-2. *Deploy the inference scheduler and an HTTPRoute* that connects it to the Gateway as follows:
+2. *Deploy the llm-d Router and an HTTPRoute* that connects it to the Gateway as follows:
 
 ```bash
 export PROVIDER_NAME=gke # options: none, gke, agentgateway, istio
