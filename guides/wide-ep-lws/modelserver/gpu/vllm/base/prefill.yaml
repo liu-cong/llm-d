@@ -31,7 +31,7 @@ spec:
             emptyDir: {}
         containers:
           - name: vllm
-            image: ghcr.io/llm-d/llm-d-cuda:v0.5.0
+            image: docker.io/vllm/vllm-openai:v0.19.1
             securityContext:
               capabilities:
                 add:
@@ -66,7 +66,7 @@ spec:
                   deepseek-ai/DeepSeek-R1-0528 \
                   --port 8000 \
                   --trust-remote-code \
-                  --disable-uvicorn-access-log \
+                  --disable-access-log-for-endpoints=/health,/metrics \
                   --data-parallel-hybrid-lb \
                   --enable-expert-parallel \
                   --tensor-parallel-size $TP_SIZE \
@@ -78,7 +78,6 @@ spec:
                   --kv_transfer_config '{"kv_connector":"NixlConnector",
                                           "kv_role":"kv_both",
                                           "kv_load_failure_policy":"fail"}' \
-                  --async-scheduling \
                   --enable-dbo \
                   --dbo-prefill-token-threshold 32 \
                   --enable-eplb \
@@ -86,8 +85,8 @@ spec:
                                   "step_interval":"3000",
                                   "num_redundant_experts":"32",
                                   "log_balancedness":"False"}' \
+                  --moe-backend deep_gemm \
                   --all2all-backend deepep_high_throughput \
-                  --gpu-memory-utilization 0.75
                   # To enable tracing, add:
                   # --otlp-traces-endpoint http://otel-collector:4317 \
                   # --collect-detailed-traces all
@@ -108,10 +107,6 @@ spec:
               - name: TRITON_LIBCUDA_PATH
                 value: /usr/lib64
               - name: VLLM_SKIP_P2P_CHECK
-                value: "1"
-              - name: VLLM_RANDOMIZE_DP_DUMMY_INPUTS
-                value: "1"
-              - name: VLLM_USE_DEEP_GEMM
                 value: "1"
               - name: NVIDIA_GDRCOPY
                 value: enabled

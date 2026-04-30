@@ -44,27 +44,28 @@ This guide includes configurations for the following accelerators:
 - Have the [proper client tools installed on your local system](../../helpers/client-setup/README.md) to use this guide.
 - Checkout llm-d repo:
 
-  ```bash
-    export branch="main" # branch, tag, or commit hash
-    git clone https://github.com/llm-d/llm-d.git && cd llm-d && git checkout ${branch}
-  ```
+```bash
+export branch="main" # branch, tag, or commit hash
+git clone https://github.com/llm-d/llm-d.git && cd llm-d && git checkout ${branch}
+```
+
 - Set the following environment variables:
-  ```bash
-    export GAIE_VERSION=v1.4.0
-    export GUIDE_NAME="wide-ep-lws"
-    export NAMESPACE=llm-d-wide-ep
-    export MODEL=deepseek-ai/DeepSeek-R1-0528
-  ```
+```bash
+export GAIE_VERSION=v1.4.0
+export GUIDE_NAME="wide-ep-lws"
+export NAMESPACE=llm-d-wide-ep
+export MODEL=deepseek-ai/DeepSeek-R1-0528
+```
 - Install the Gateway API Inference Extension CRDs:
 
-  ```bash
-    kubectl apply -k "https://github.com/kubernetes-sigs/gateway-api-inference-extension/config/crd?ref=${GAIE_VERSION}"
-  ```
+```bash
+kubectl apply -k "https://github.com/kubernetes-sigs/gateway-api-inference-extension/config/crd?ref=${GAIE_VERSION}"
+```
 - You have deployed the [LeaderWorkerSet controller](https://lws.sigs.k8s.io/docs/installation/)
 - Create a target namespace for the installation:
-  ```bash
-      kubectl create namespace ${NAMESPACE}
-  ```
+```bash
+kubectl create namespace ${NAMESPACE}
+```
 - [Create the `llm-d-hf-token` secret in your target namespace with the key `HF_TOKEN` matching a valid HuggingFace token](../../helpers/hf-token.md) to pull models.
 
 ## Installation Instructions
@@ -111,21 +112,9 @@ helm install ${GUIDE_NAME} \
 Apply the Kustomize overlays for your specific backend (defaulting to GKE / H200):
 
 ```bash
-kubectl apply -n ${NAMESPACE} -k guides/${GUIDE_NAME}/modelserver/gpu/vllm/gke
+export INFRA_PROVIDER=base # gke, gke-a4, coreweave
+kubectl apply -n ${NAMESPACE} -k guides/${GUIDE_NAME}/modelserver/gpu/vllm/${INFRA_PROVIDER}
 ```
-
-<summary><h4> Click here for other deployment environemnts </h4></summary>
-
-To deploy on GKE with B200:
-```bash
-kubectl apply -n ${NAMESPACE} -k guides/${GUIDE_NAME}/modelserver/gpu/vllm/gke-a4
-```
-To deploy on CoreWeave:
-```bash
-kubectl apply -n ${NAMESPACE} -k guides/${GUIDE_NAME}/modelserver/gpu/vllm/coreweave
-```
-
-</details>
 
 
 ### 3. (Optional) Enable monitoring
@@ -137,7 +126,7 @@ kubectl apply -n ${NAMESPACE} -k guides/${GUIDE_NAME}/modelserver/gpu/vllm/corew
 - Deploy the monitoring resources for this guide.
 
 ```bash
-kubectl apply -n ${NAMESPACE} -k guides/recipes/modelserver/components/monitoring
+kubectl apply -n ${NAMESPACE} -k guides/recipes/modelserver/components/monitoring-pd
 ```
 
 ### 4. (Optional) Topology Aware Scheduling (TAS)
