@@ -91,9 +91,6 @@ helm install ${GUIDE_NAME} \
 
 Apply the Kustomize overlay setup matching your preferred offloading medium.
 
-#### vLLM Offloading Connector (Default)
-Deploy vLLM with native offloading connector enabled:
-
 ```bash
 export CONNECTOR=offloading-connector # offloading-connector | lmcache-connector
 kubectl apply -n ${NAMESPACE} -k guides/tiered-prefix-cache/cpu/modelserver/gpu/vllm/${CONNECTOR}
@@ -104,6 +101,15 @@ kubectl apply -n ${NAMESPACE} -k guides/tiered-prefix-cache/cpu/modelserver/gpu/
 > LRU capacity for the CPU cache must be manually configured (`lruCapacityPerServer`) because vLLM currently does not emit CPU block metrics.
 
 ---
+
+### 3. (Optional) Enable monitoring
+
+- Install the [Monitoring stack](../../../docs/monitoring/README.md).
+- Deploy the monitoring resources for this guide:
+
+```bash
+kubectl apply -n ${NAMESPACE} -k guides/recipes/modelserver/components/monitoring
+```
 
 ## Verification
 

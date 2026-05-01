@@ -5,28 +5,18 @@ metadata:
 spec:
   template:
     spec:
-      initContainers:
-        - name: fix-lustre-permissions
-          image: busybox:latest
-          command: ["sh", "-c", "chmod -R g+w /mnt/files-storage/"]
-          volumeMounts:
-            - name: files-storage
-              mountPath: /mnt/files-storage
       containers:
         - name: modelserver
           command: ["vllm"]
           args:
             - "serve"
-            - "meta-llama/Llama-3.3-70B-Instruct"
+            - "Qwen/Qwen3-32B"
             - "--tensor-parallel-size"
-            - "4"
-            - "--port"
-            - "8000"
+            - "2"
             - "--max-num-seq"
             - "1024"
             - "--kv-transfer-config"
             - '{"kv_connector":"LMCacheConnectorV1","kv_role":"kv_both"}'
-            - "--enable_prefix_caching"
             - "--gpu-memory-utilization"
             - "0.8"
           env:

@@ -77,6 +77,7 @@ This deploys the inference scheduler with an Envoy sidecar side-by-side:
 helm install ${GUIDE_NAME} \
     oci://registry.k8s.io/gateway-api-inference-extension/charts/standalone \
     -f guides/recipes/scheduler/base.values.yaml \
+    -f guides/tiered-prefix-cache/storage/scheduler/${GUIDE_NAME}.values.yaml \
     -n ${NAMESPACE} --version ${GAIE_VERSION}
 ```
 
@@ -108,13 +109,13 @@ helm install llm-d-infpool \
 Apply the Kustomize overlay corresponding to your desired connector backend.
 
 ```bash
-export CONNECTOR=llm-d-fs-connector # llm-d-fs-connector | lmcache-connector
+export CONNECTOR=llm-d-fs-connector # llm-d-fs-connector | lmcache-connector | llm-d-fs-connector-lustre | lmcache-connector-lustre
 kubectl apply -n ${NAMESPACE} -k guides/tiered-prefix-cache/storage/modelserver/gpu/vllm/${CONNECTOR}
 ```
 
 ---
 
-### 4. Enable monitoring (optional)
+### 4. (Optional) Enable monitoring
 
 - Install the [Monitoring stack](../../../docs/monitoring/README.md).
 - Deploy the monitoring resources for this guide:
@@ -184,10 +185,8 @@ NAME         STATUS   VOLUME                  CAPACITY   ACCESS MODES   STORAGEC
 
 ### Verify KV cache is offloaded to storage
 
-<!-- TABS:START -->
-
-<!-- TAB:llm-d FS Connector -->
-#### llm-d FS Connector
+<details>
+<summary><h4>Click here for llm-d FS Connector</h4></summary>
 
 Send a long prompt (one that crosses several `block_size` boundaries) to trigger offload, then inspect the PVC:
 
@@ -216,8 +215,10 @@ kubectl exec -n ${NAMESPACE} ${POD} -- curl -s http://localhost:8000/metrics | g
 
 A successful offload increments `vllm:kv_offload_total_bytes{transfer_type="GPU_to_SHARED_STORAGE"}`.
 
-<!-- TAB:LMCache Connector -->
-#### LMCache Connector
+</details>
+
+<details>
+<summary><h4>Click here for LMCache Connector</h4></summary>
 
 ```bash
 export IP=localhost
@@ -231,6 +232,8 @@ Verify the folder size where the shared storage is mounted:
 ```bash
 kubectl exec -it $POD_NAME -n ${NAMESPACE} -- du -sh /mnt/files-storage
 ```
+
+</details>
 
 ---
 
@@ -247,8 +250,6 @@ To clean and remove applied deployments:
 ```bash
 helm uninstall ${GUIDE_NAME} -n ${NAMESPACE}
 kubectl delete -f guides/tiered-prefix-cache/storage/manifests/pvc.yaml -n ${NAMESPACE}
-kubectl delete -n ${NAMESPACE} -k guides/tiered-prefix-cache/storage/modelserver/gpu/vllm/llm-d-fs-connector
-# or delete the lmcache-connector
-# kubectl delete -n ${NAMESPACE} -k guides/tiered-prefix-cache/storage/modelserver/gpu/vllm/lmcache-connector
+kubectl delete -n ${NAMESPACE} -k guides/tiered-prefix-cache/storage/modelserver/gpu/vllm/${CONNECTOR}
 kubectl delete namespace ${NAMESPACE}
 ```
