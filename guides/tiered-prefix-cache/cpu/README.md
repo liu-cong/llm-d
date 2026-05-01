@@ -163,10 +163,7 @@ To clean up the applied deployment components:
 
 ```bash
 helm uninstall ${GUIDE_NAME} -n ${NAMESPACE}
-kubectl delete -n ${NAMESPACE} -k guides/tiered-prefix-cache/cpu/modelserver/gpu/vllm/offloading-connector
-# Or if deployed with LMCache
-# kubectl delete -n ${NAMESPACE} -k guides/tiered-prefix-cache/cpu/modelserver/gpu/vllm/lmcache-connector
-
+kubectl delete -n ${NAMESPACE} -k guides/tiered-prefix-cache/cpu/modelserver/gpu/vllm/${CONNECTOR}
 kubectl delete namespace ${NAMESPACE}
 ```
 

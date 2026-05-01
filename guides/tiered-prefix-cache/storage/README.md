@@ -35,8 +35,8 @@ This guide explains how to offload the vLLM prefix cache (KV cache) to shared st
 - Set the following environment variables:
   ```bash
     export GAIE_VERSION=v1.4.0
-    export GUIDE_NAME="llm-d-pfc-storage"
-    export NAMESPACE=llm-d-storage
+    export GUIDE_NAME="tiered-prefix-cache-storage"
+    export NAMESPACE=llm-d-${GUIDE_NAME}
   ```
 - Install the Gateway API Inference Extension CRDs:
 
@@ -64,7 +64,7 @@ export STORAGE_CLASS=default # options: default, lustre, efs-sc
 Create a PVC using the selected storage class:
 
 ```bash
-kubectl apply -f guides/tiered-prefix-cache/storage/manifests/pvc.yaml -n ${NAMESPACE}
+envsubst < guides/tiered-prefix-cache/storage/manifests/pvc.yaml | kubectl apply -n ${NAMESPACE} -f -
 ```
 
 ### 2. Deploy the llm-d Router
