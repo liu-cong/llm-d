@@ -106,7 +106,12 @@ helm install llm-d-infpool \
 
 ### 3. Deploy the Model Server
 
-Apply the Kustomize overlay corresponding to your desired connector backend.
+Apply the Kustomize overlay corresponding to your desired connector backend. 
+
+<details>
+<summary><h4>Click here for GCP Lustre</h4></summary>
+For GCP lustre, please apply `llm-d-fs-connector-lustre` or `llm-d-fs-connector-lustre` which contains a patch to allow vLLM to write to Lustre.
+</details>
 
 ```bash
 export CONNECTOR=llm-d-fs-connector # llm-d-fs-connector | lmcache-connector | llm-d-fs-connector-lustre | lmcache-connector-lustre
