@@ -6,18 +6,18 @@ This guide explains how to offload the vLLM prefix cache (KV cache) to shared st
 
 ## Default Configuration
 
-| Parameter          | Value                                                   |
-| ------------------ | ------------------------------------------------------- |
-| Model              | [meta-llama/Llama-3.3-70B-Instruct](https://huggingface.co/meta-llama/Llama-3.3-70B-Instruct) |
-| Data Parallelism   | 4                                                       |
-| Total GPUs         | 16                                                      |
+| Parameter                 | Value                                                   |
+| ------------------------- | ------------------------------------------------------- |
+| Model                     | [meta-llama/Llama-3.3-70B-Instruct](https://huggingface.co/meta-llama/Llama-3.3-70B-Instruct) |
+| GPUs per replica (TP)     | 4                                                       |
+| GPU Accelerator           | NVIDIA H100                                             |
 
 ### Supported Connectors
 
-| Connector             | Overlay Directory                             | Notes                                      |
-| --------------------- | -------------------------------------------- | ------------------------------------------ |
-| llm-d FS Connector    | `manifests/vllm/llm-d-fs-connector/`          | vLLM native file system offload             |
-| LMCache Connector     | `manifests/vllm/lmcache-connector/`          | Integrated LMCache shared storage backend   |
+| Connector             | Directory                                                              |
+| --------------------- | ---------------------------------------------------------------------- |
+| llm-d FS Connector    | `modelserver/gpu/vllm/llm-d-fs-connector/`                              |
+| LMCache Connector     | `modelserver/gpu/vllm/lmcache-connector/`                              |
 
 ---
 
@@ -42,11 +42,12 @@ This guide explains how to offload the vLLM prefix cache (KV cache) to shared st
   ```bash
     kubectl apply -k "https://github.com/kubernetes-sigs/gateway-api-inference-extension/config/crd?ref=${GAIE_VERSION}"
   ```
+
 - Create a target namespace for the installation:
   ```bash
     kubectl create namespace ${NAMESPACE}
   ```
-- [Create the `llm-d-hf-token` secret in your target namespace with the key `HF_TOKEN` matching a valid HuggingFace token](../../../helpers/hf-token.md) to pull models.
+
 
 ---
 
@@ -66,11 +67,11 @@ Create a PVC using the selected storage class:
 kubectl apply -f guides/tiered-prefix-cache/storage/manifests/pvc.yaml -n ${NAMESPACE}
 ```
 
-### 2. Deploy the Inference Scheduler
+### 2. Deploy the llm-d Router
 
 #### Standalone Mode
 
-This deploys the inference scheduler with an Envoy sidecar, it doesn't set up a Kubernetes Gateway.
+This deploys the inference scheduler with an Envoy sidecar side-by-side:
 
 ```bash
 helm install ${GUIDE_NAME} \
@@ -80,7 +81,12 @@ helm install ${GUIDE_NAME} \
 ```
 
 <details>
-<summary><h4>Gateway Mode (Deprecated)</h4></summary>
+<summary><h4>Gateway Mode</h4></summary>
+
+To use a Kubernetes Gateway managed proxy instead of standalone:
+
+1. _Deploy a Kubernetes Gateway_ by following one of [the gateway guides](../../prereq/gateways).
+2. _Deploy HTTPRoute and the inference scheduler_:
 
 ```bash
 export PROVIDER_NAME=gke # options: none, gke, agentgateway, istio
@@ -88,37 +94,40 @@ helm install llm-d-infpool \
     oci://registry.k8s.io/gateway-api-inference-extension/charts/inferencepool  \
     -f guides/recipes/scheduler/base.values.yaml \
     --set provider.name=${PROVIDER_NAME} \
+    --set experimentalHttpRoute.enabled=true \
+    --set experimentalHttpRoute.inferenceGatewayName=llm-d-inference-gateway \
     -n ${NAMESPACE} --version ${GAIE_VERSION}
 ```
 
 </details>
 
+---
+
 ### 3. Deploy the Model Server
 
-Apply the connector overlay of your choice:
+Apply the Kustomize overlay corresponding to your desired connector backend.
 
-<!-- TABS:START -->
-
-<!-- TAB:llm-d FS Connector:default -->
-#### llm-d FS Connector
+#### llm-d FS Connector (Default)
 
 ```bash
-kubectl apply -k guides/tiered-prefix-cache/storage/manifests/vllm/llm-d-fs-connector -n ${NAMESPACE}
+kubectl apply -n ${NAMESPACE} -k guides/tiered-prefix-cache/storage/modelserver/gpu/vllm/llm-d-fs-connector
 ```
 
-<!-- TAB:LMCache Connector -->
-#### LMCache Connector
+<details>
+<summary><h4>LMCache Connector</h4></summary>
 
 ```bash
-kubectl apply -k guides/tiered-prefix-cache/storage/manifests/vllm/lmcache-connector -n ${NAMESPACE}
+kubectl apply -n ${NAMESPACE} -k guides/tiered-prefix-cache/storage/modelserver/gpu/vllm/lmcache-connector
 ```
 
-<!-- TABS:END -->
+</details>
+
+---
 
 ### 4. Enable monitoring (optional)
 
 - Install the [Monitoring stack](../../../docs/monitoring/README.md).
-- Deploy the monitoring resources for this guide.
+- Deploy the monitoring resources for this guide:
 
 ```bash
 kubectl apply -n ${NAMESPACE} -k guides/recipes/modelserver/components/monitoring
@@ -136,9 +145,16 @@ kubectl apply -n ${NAMESPACE} -k guides/recipes/modelserver/components/monitorin
 export IP=$(kubectl get service ${GUIDE_NAME}-epp -n ${NAMESPACE} -o jsonpath='{.spec.clusterIP}')
 ```
 
-### 2. Send Test Requests
+<details>
+<summary> <b>Gateway Mode</b> </summary>
 
-**Open a temporary interactive shell inside the cluster:**
+```bash
+export IP=$(kubectl get gateway llm-d-inference-gateway -n ${NAMESPACE} -o jsonpath='{.status.addresses[0].value}')
+```
+
+</details>
+
+### 2. Send Test Requests
 
 ```bash
 kubectl run curl-debug --rm -it \
@@ -250,8 +266,6 @@ A successful offload increments `vllm:kv_offload_total_bytes{transfer_type="GPU_
 <!-- TAB:LMCache Connector -->
 #### LMCache Connector
 
-You can verify if the KV cache is being offloaded to local storage by checking the metric `lmcache:local_storage_usage` through the following command.
-
 ```bash
 export IP=localhost
 export PORT=8000
@@ -259,102 +273,29 @@ export POD_NAME=llm-d-decode-xxxx-xxxx
 kubectl exec -it $POD_NAME -- curl -i http://${IP}:${PORT}/metrics | grep lmcache:local_storage_usage
 ```
 
-Verify the folder size where the shared storage is mounted. It should be in GBs after KV cache offloading completes, though the actual size will differ based on the requests served.
+Verify the folder size where the shared storage is mounted:
 
 ```bash
 kubectl exec -it $POD_NAME -n ${NAMESPACE} -- du -sh /mnt/files-storage
 ```
 
-<!-- TABS:END -->
+---
 
 ## Benchmarking
 
-The following benchmark results demonstrate the performance improvements of offloading the KV cache to Lustre using the LMCache connector. Two scenarios with varying context lengths are provided to illustrate how the performance gains from Lustre scale up as the computational load and KV cache size increase, particularly when exceeding the capacity of local HBM and CPU RAM.
-
-### LMCache connector
-
-#### Benchmark Setup
-
-* **Hardware:**
-  * A total of 16 H100 GPUs, each with 80GB of HBM, were used.
-  * The GPUs were distributed across 4 `a3-highgpu-4g` instances, with 4 GPUs per instance.
-  * Lustre PVC with storage capacity of 18000GiB
-
-* **vLLM Configuration:**
-  * `gpu_memory_utilization` was set to `0.65` to reduce the pressure on the benchmark tool. In production configuration this is typically set to a higher value such as 0.9.
-  * Baseline has CPU offloading enabled.
-  * Lustre offloading was enabled using Lustre PVC as local backend disk.
-
-* **LMCache Configuration:**
-  * For LMCache setup, `LMCACHE_MAX_LOCAL_CPU_SIZE` set to `20GB`, which provides approximately 20*16(number of GPUs)=320GB of CPU RAM cache.
-  * Lustre storage capacity available for KV cache offloading was set through `LMCACHE_MAX_LOCAL_DISK_SIZE:"1120Gi"`. As we have 16 GPUs sharing the Lustre disk, 1120*16= 17920Gi <= 18000Gi (i.e. available Lustre capacity) This value can be less than or equal to the available disk size.
-
-The benchmark was conducted using the [inference-perf](https://github.com/kubernetes-sigs/inference-perf) tool with the following hardware, memory, and workload configurations:
-
-* **Workload:**
-  * The two different workloads were tested with a constant concurrency of 20 requests with different system_prompt_lengths of 50K and 70K.
-  * **Inference Perf configuration**
-    * `type`: concurrent
-    * `num_requests`: 2700
-    * `concurrency_level`: 20
-  * **System prompt length: 50K**
-    * `num_groups`: 50
-    * `system_prompt_len`: 50000
-    * `question_len`: 256
-    * `output_len`: 1024
-    * `num_prompts_per_group`: 50
-  * **System prompt length: 70K**
-    * `num_groups`: 50
-    * `system_prompt_len`: 70000
-    * `question_len`: 256
-    * `output_len`: 1024
-    * `num_prompts_per_group`: 50
-
-* **Memory Calculation:**
-  * The KVCache size for the `meta-llama/Llama-3.3-70B-Instruct` model is approximately 320KB per token.
-  * With `gpu_memory_utilization` at 0.65, there are 10768 GPU blocks available per engine.
-  * The available HBM for KVCache per engine is approximately 55 GB (10768 blocks * 5.12 MB/block).
-  * The total available HBM for the KVCache across the entire system was 220 GB (4 engines * 55 GB/engine).
-  * Total CPU RAM cache available across the system was 320 GB.
-  * Lustre capacity available for KV cache offloading: `LMCACHE_MAX_LOCAL_DISK_SIZE="1120Gi"` for each GPU.
-
-#### Key Findings
-
-In both scenarios, the total KV cache size significantly exceeds the combined capacity of local HBM and CPU RAM. The results demonstrate that as context length and memory demands increase, the performance benefits of offloading to Lustre become even more pronounced.
-
-* **50K system prompt length (KVCache size 994 GiB):** While CPU RAM provides 320GB for KV cache offloading, adding Lustre significantly enhances performance compared to relying on CPU offloading alone.
-* **70K system prompt length (KVCache size 1.3 TiB):** As the KV cache footprint grows to 1.3 TiB, the memory pressure intensifies. In this heavier scenario, Lustre delivers even greater performance gains, demonstrating its ability to seamlessly scale with demanding long-context use cases.
-
-
-#### 50K system prompt length (KVCache size 994 GiB) — KV Cache > (HBM + CPU RAM)
-
-| KVCache > HBM + CPU RAM | Mean TTFT (second) | P90 TTFT (second) | Mean E2E Latency (second) | P90 E2E Latency (second) | Input Throughput (token per second) | Output Throughput (token per second) | Overall Throughput (token per second) |
-| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **Baseline vLLM + CPU offloading** | 25.38 | 37.74 | 56.21 | 69.69 | 18607 | 354 | 18962 |
-| **vLLM + CPU offloading + Lustre** | 20.12 (-21%) | 34.02 (-9.9%) | 45.83 (-18%) | 58.73 (-16%) | 22827 (+23%) | 435 (+23%) | 23262 (+23%) |
-
-#### 70K system prompt length (KVCache size 1.3TiB GiB) — KV Cache >> (HBM + CPU RAM)
-
-| KVCache >> HBM + CPU RAM | Mean TTFT (second) | P90 TTFT (second) | Mean E2E Latency (second) | P90 E2E Latency (second) | Input Throughput (token per second) | Output Throughput (token per second) | Overall Throughput (token per second) |
-| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **Baseline vLLM + CPU offloading** | 58.02 | 74.75 | 87.99 | 105.46 | 16598 | 226.65 | 16825 |
-| **vLLM + CPU offloading + Lustre** | 45 (-22%) | 64.79 (-13%) | 68.28 (-22%) | 87.47 (-17%) | 21364 (+28.71%) | 291 (+28.39%) | 21656 (+28.71%) |
+Refer to the [standard benchmark instructions](../../../helpers/benchmark.md) for launching synthetic profile tests. Detailed offloaded benchmarks have demonstrated up to **+25%** throughput improvements for heavily preloaded system prompts (50k+ tokens).
 
 ---
 
 ## Cleanup
 
-To remove the deployed components:
+To clean and remove applied deployments:
 
 ```bash
 helm uninstall ${GUIDE_NAME} -n ${NAMESPACE}
 kubectl delete -f guides/tiered-prefix-cache/storage/manifests/pvc.yaml -n ${NAMESPACE}
-kubectl delete -n ${NAMESPACE} -k guides/tiered-prefix-cache/storage/manifests/vllm/<llm-d-fs-connector|lmcache-connector>
+kubectl delete -n ${NAMESPACE} -k guides/tiered-prefix-cache/storage/modelserver/gpu/vllm/llm-d-fs-connector
+# or delete the lmcache-connector
+# kubectl delete -n ${NAMESPACE} -k guides/tiered-prefix-cache/storage/modelserver/gpu/vllm/lmcache-connector
 kubectl delete namespace ${NAMESPACE}
 ```
-
----
-
-## Appendix: Performance Benchmarks
-
-Detailed offloading performance results for Lustre and parallel file systems are reported in the original guide. Offloading heavily populated system prompts (50k+ tokens) yields upwards of **25%+** throughput improvements.

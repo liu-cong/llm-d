@@ -2,7 +2,36 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
   # Use the CPU offloading base to form a tiered cache structure: HBM - CPU - storage.
-  - ../../../../cpu/manifests/vllm/lmcache-connector
+  - ../../../../../cpu/modelserver/gpu/vllm/lmcache-connector
+
+labels:
+  - pairs:
+      llm-d.ai/model: Llama-3.3-70B-Instruct
+      llm-d.ai/guide: tiered-prefix-cache-storage
+      llm-d.ai/accelerator-variant: gpu
+      llm-d.ai/accelerator-vendor: nvidia
+    includeSelectors: true
+    includeTemplates: true
+    fields:
+      - version: v1
+        kind: ServiceAccount
+        path: metadata/labels
+        create: true
+      - group: apps
+        version: v1
+        kind: Deployment
+        path: metadata/labels
+        create: true
+      - group: apps
+        version: v1
+        kind: Deployment
+        path: spec/selector/matchLabels
+        create: true
+      - group: apps
+        version: v1
+        kind: Deployment
+        path: spec/template/metadata/labels
+        create: true
 patches:
   - target:
       kind: Deployment

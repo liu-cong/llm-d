@@ -1,0 +1,4 @@
+inferencePool:
+  modelServers:
+    matchLabels:
+      llm-d.ai/guide: "tiered-prefix-cache-storage"
