@@ -33,8 +33,8 @@ This guide defaults to NVIDIA H100 GPUs. The Kustomize overlays are available in
 - Set the following environment variables:
   ```bash
     export GAIE_VERSION=v1.4.0
-    export GUIDE_NAME="tiered-prefix-cache"
-    export NAMESPACE=llm-d-tiered-prefix-cache-cpu
+    export GUIDE_NAME="tiered-prefix-cache-cpu"
+    export NAMESPACE=llm-d-${GUIDE_NAME}
   ```
 - Install the Gateway API Inference Extension CRDs:
 
@@ -46,10 +46,6 @@ This guide defaults to NVIDIA H100 GPUs. The Kustomize overlays are available in
   ```bash
     kubectl create namespace ${NAMESPACE}
   ```
-
-
-
----
 
 ## Installation Instructions
 
@@ -63,7 +59,7 @@ This deploys the inference scheduler with an Envoy sidecar side-by-side. Default
 helm install ${GUIDE_NAME} \
     oci://registry.k8s.io/gateway-api-inference-extension/charts/standalone \
     -f guides/recipes/scheduler/base.values.yaml \
-    -f guides/${GUIDE_NAME}/cpu/manifests/scheduler/${GUIDE_NAME}.values.yaml \
+    -f guides/tiered-prefix-cache/cpu/scheduler/${GUIDE_NAME}.values.yaml \
     -n ${NAMESPACE} --version ${GAIE_VERSION}
 ```
 
@@ -80,7 +76,7 @@ export PROVIDER_NAME=gke # options: none, gke, agentgateway, istio
 helm install ${GUIDE_NAME} \
     oci://registry.k8s.io/gateway-api-inference-extension/charts/inferencepool  \
     -f guides/recipes/scheduler/base.values.yaml \
-    -f guides/${GUIDE_NAME}/cpu/manifests/scheduler/${GUIDE_NAME}.values.yaml \
+    -f guides/tiered-prefix-cache/cpu/scheduler/${GUIDE_NAME}.values.yaml \
     --set provider.name=${PROVIDER_NAME} \
     --set experimentalHttpRoute.enabled=true \
     --set experimentalHttpRoute.inferenceGatewayName=llm-d-inference-gateway \
@@ -99,22 +95,12 @@ Apply the Kustomize overlay setup matching your preferred offloading medium.
 Deploy vLLM with native offloading connector enabled:
 
 ```bash
-kubectl apply -n ${NAMESPACE} -k guides/tiered-prefix-cache/cpu/modelserver/gpu/vllm/offloading-connector
+export CONNECTOR=offloading-connector # offloading-connector | lmcache-connector
+kubectl apply -n ${NAMESPACE} -k guides/tiered-prefix-cache/cpu/modelserver/gpu/vllm/${CONNECTOR}
 ```
-
-<details>
-<summary><h4>LMCache Connector</h4></summary>
-
-Deploy vLLM with the LMCache connector enabled:
-
-```bash
-kubectl apply -n ${NAMESPACE} -k guides/tiered-prefix-cache/cpu/modelserver/gpu/vllm/lmcache-connector
-```
-
-</details>
 
 > [!NOTE]
-> To enable tiered prefix caching, we customize the `InferencePool` configuration. We configure two prefix cache scorers: one for the GPU cache and another for the CPU cache.
+> To enable tiered prefix caching, we customize the `inferenceExtension` configuration. We configure two prefix cache scorers: one for the GPU cache and another for the CPU cache.
 > LRU capacity for the CPU cache must be manually configured (`lruCapacityPerServer`) because vLLM currently does not emit CPU block metrics.
 
 ---

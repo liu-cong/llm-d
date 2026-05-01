@@ -8,9 +8,10 @@ This guide explains how to offload the vLLM prefix cache (KV cache) to shared st
 
 | Parameter                 | Value                                                   |
 | ------------------------- | ------------------------------------------------------- |
-| Model                     | [meta-llama/Llama-3.3-70B-Instruct](https://huggingface.co/meta-llama/Llama-3.3-70B-Instruct) |
+| Model                     | [Qwen/Qwen3-32B](https://huggingface.co/Qwen/Qwen3-32B) |
 | GPUs per replica (TP)     | 4                                                       |
 | GPU Accelerator           | NVIDIA H100                                             |
+| CPU Cache Offload Size    | 100 GB                                                  |
 
 ### Supported Connectors
 
@@ -47,7 +48,6 @@ This guide explains how to offload the vLLM prefix cache (KV cache) to shared st
   ```bash
     kubectl create namespace ${NAMESPACE}
   ```
-
 
 ---
 
@@ -107,20 +107,10 @@ helm install llm-d-infpool \
 
 Apply the Kustomize overlay corresponding to your desired connector backend.
 
-#### llm-d FS Connector (Default)
-
 ```bash
-kubectl apply -n ${NAMESPACE} -k guides/tiered-prefix-cache/storage/modelserver/gpu/vllm/llm-d-fs-connector
+export CONNECTOR=llm-d-fs-connector # llm-d-fs-connector | lmcache-connector
+kubectl apply -n ${NAMESPACE} -k guides/tiered-prefix-cache/storage/modelserver/gpu/vllm/${CONNECTOR}
 ```
-
-<details>
-<summary><h4>LMCache Connector</h4></summary>
-
-```bash
-kubectl apply -n ${NAMESPACE} -k guides/tiered-prefix-cache/storage/modelserver/gpu/vllm/lmcache-connector
-```
-
-</details>
 
 ---
 
@@ -156,6 +146,8 @@ export IP=$(kubectl get gateway llm-d-inference-gateway -n ${NAMESPACE} -o jsonp
 
 ### 2. Send Test Requests
 
+**Open a temporary interactive shell inside the cluster:**
+
 ```bash
 kubectl run curl-debug --rm -it \
     --image=cfmanteiga/alpine-bash-curl-jq \
@@ -167,10 +159,15 @@ kubectl run curl-debug --rm -it \
 **Send a completion request:**
 
 ```bash
-<<<<<<< HEAD
-NAME            HOSTNAMES   AGE
-llm-d-infpool               17m
+curl -X POST http://${IP}/v1/completions \
+    -H 'Content-Type: application/json' \
+    -d '{
+        "model": "Qwen/Qwen3-32B",
+        "prompt": "How are you today?"
+    }' | jq
 ```
+
+---
 
 ### Check the PVC
 
@@ -183,50 +180,6 @@ Output should show the PVC as `Bound`:
 ```
 NAME         STATUS   VOLUME                  CAPACITY   ACCESS MODES   STORAGECLASS   VOLUMEATTRIBUTESCLASS   AGE
 <pvc-name>   Bound    pvc-3c793698-XXXXXXX    18000Gi    RWX            <storage-class>   <unset>              6d
-```
-
-### Check the InferencePool
-
-```bash
-kubectl get inferencepool -n ${NAMESPACE}
-```
-
-```bash
-NAME            AGE
-llm-d-infpool   16m
-```
-
-### Check the Pods
-
-```bash
-kubectl get pods -n ${NAMESPACE}
-```
-
-You should see the InferencePool's endpoint pod and the model server pods in a `Running` state.
-
-```bash
-NAME                                READY   STATUS    RESTARTS   AGE
-llm-d-infpool-epp-xxxxxxxx-xxxxx    1/1     Running   0          16m
-llm-d-decode-xxxxxxxx-xxxxx         1/1     Running   0          11m
-llm-d-decode-xxxxxxxx-xxxxx         1/1     Running   0          11m
-```
-
-### Test inference through the Gateway
-
-The Gateway is a `ClusterIP` Service, so port-forward to call it from outside the cluster:
-
-```bash
-kubectl port-forward -n ${NAMESPACE} svc/llm-d-inference-gateway-istio 8000:80 &
-curl -s http://localhost:8000/v1/models
-curl -s http://localhost:8000/v1/completions \
-  -H 'Content-Type: application/json' \
-  -d '{"model":"Qwen/Qwen3-32B","prompt":"The capital of France is","max_tokens":15,"temperature":0}'
-```
-
-A successful response looks like:
-
-```json
-{"id":"cmpl-...","object":"text_completion","model":"Qwen/Qwen3-32B","choices":[{"index":0,"text":" Paris. ...","finish_reason":"length"}],"usage":{"prompt_tokens":5,"completion_tokens":15,"total_tokens":20}}
 ```
 
 ### Verify KV cache is offloaded to storage
