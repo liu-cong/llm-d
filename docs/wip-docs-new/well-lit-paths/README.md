@@ -20,7 +20,10 @@ Well-lit paths are curated, end-to-end guides for common LLM inference patterns 
 ### Operational Excellence
 
 - **[Flow Control](flow-control.md)**: Intelligent request queuing for multi-tenant deployments and managing traffic spikes.
+- **[Workload Autoscaling](workload-autoscaling.md)**: From simple Kubernetes autoscaling supplemented by EPP load metrics to advanced, SLO-aware capacity optimization for heterogeneous pools via the Workload Variant Autoscaler.
 
-## Experimental
+### Experimental
 
-- **[Batch Gateway](experimental/batch-gateway.md)**: Efficiently running large-scale batch inference alongside interactive workloads via an OpenAI-compatible API.
+- **[Asynchronous Processing](asynchronous-processing.md)**: Intelligently processing latency-tolerant requests sourced from message queues via a lightweight agent to leverage "slack" capacity without the complexity of a full batch gateway.
+- **[Batch Gateway](experimental/batch-gateway.md)**: Managing large-scale batch inference coexisting with interactive workloads via an OpenAI-compatible Batch API.
+
