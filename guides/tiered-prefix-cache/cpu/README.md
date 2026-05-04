@@ -32,7 +32,7 @@ This guide defaults to NVIDIA H100 GPUs. The Kustomize overlays are available in
 
 - Set the following environment variables:
   ```bash
-    export GAIE_VERSION=v1.4.0
+    export GAIE_VERSION=v1.5.0
     export GUIDE_NAME="tiered-prefix-cache-cpu"
     export NAMESPACE=llm-d-${GUIDE_NAME}
   ```
