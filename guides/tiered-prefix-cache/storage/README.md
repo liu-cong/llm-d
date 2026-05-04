@@ -244,12 +244,7 @@ kubectl exec -n ${NAMESPACE} ${POD} -- find /mnt/files-storage/kv-cache -maxdept
 Expected output: `du -sh` shows hundreds of MB to several GB, and `find` lists a path like
 `/mnt/files-storage/kv-cache/<model>/<block-config>/<tp-config>/...` (fs connector) or `/mnt/files-storage/kv-cache/<model>-xxx.pt` (lmcache connector).
 
-You can also confirm via vLLM's offload metrics (exposed at `/metrics` on each pod):
-
-```bash
-export METRIC_NAME="vllm:kv_offload_total_bytes" # vllm:kv_offload_total_bytes for fs connector OR lmcache:local_storage_usage for lmcache connector
-kubectl exec -n ${NAMESPACE} ${POD} -- curl -s http://localhost:8000/metrics | grep "^$METRIC_NAME"
-```
+If you have monitoring set up, you can also confirm via vLLM's offload metrics in the metrics explorer, `vllm:kv_offload_total_bytes` for fs connector or `lmcache:local_storage_usage` for lmcache connector.
 
 ---
 
@@ -260,6 +255,9 @@ The following benchmark results demonstrate the performance improvements of offl
 ### LMCache connector
 
 #### Benchmark Setup
+
+> [!NOTE]
+> The following benchmark results were from a previous release and does not match the deployment of the current release. A follow up benchmark will be conducted and the results will be updated accordingly. See https://github.com/llm-d/llm-d/issues/680.
 
 * **Hardware:**
   * A total of 16 H100 GPUs, each with 80GB of HBM, were used.
@@ -325,10 +323,6 @@ In both scenarios, the total KV cache size significantly exceeds the combined ca
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
 | **Baseline vLLM + CPU offloading** | 58.02 | 74.75 | 87.99 | 105.46 | 16598 | 226.65 | 16825 |
 | **vLLM + CPU offloading + Lustre** | 45 (-22%) | 64.79 (-13%) | 68.28 (-22%) | 87.47 (-17%) | 21364 (+28.71%) | 291 (+28.39%) | 21656 (+28.71%) |
-
-
-LLM-D FS connector benchmarks coming soon, see tracking issues:
-* https://github.com/llm-d/llm-d/issues/680
 
 ---
 
