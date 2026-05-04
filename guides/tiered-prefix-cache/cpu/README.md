@@ -155,12 +155,6 @@ curl -X POST http://${IP}/v1/completions \
 
 ---
 
-## Benchmarking
-
-For instructions on setting up standard workloads and running performance analyses against this guide, refer to the [benchmark instructions doc](../../../helpers/benchmark.md).
-
-The current weight configuration defaults to `2:2:1:1` (Queue Scorer : KV Cache Utilization Scorer : GPU Prefix Cache Scorer : CPU Prefix Cache Scorer). This configuration defaults to a safe performance profile.
-
 ---
 
 ## Cleanup
@@ -175,9 +169,18 @@ kubectl delete namespace ${NAMESPACE}
 
 ---
 
-## Appendix: Benchmark Findings
+## Benchmarking
 
-### High Cache Performance (HBM < KVCache < HBM + CPU RAM)
+For instructions on setting up standard workloads and running performance analyses against this guide, refer to the [benchmark instructions doc](../../../helpers/benchmark.md).
+
+The current weight configuration defaults to `2:2:1:1` (Queue Scorer : KV Cache Utilization Scorer : GPU Prefix Cache Scorer : CPU Prefix Cache Scorer). This configuration defaults to a safe performance profile.
+
+
+> [!NOTE]
+> The following benchmark results were from a previous release and does not match the deployment of the current release. A follow up benchmark will be conducted and the results will be updated accordingly. See https://github.com/llm-d/llm-d/issues/680.
+
+
+### High Cache Scenario (HBM < KVCache < HBM + CPU RAM)
 
 | Medium Configuration | Mean TTFT (second) | P90 TTFT (second) | Mean E2E Latency (second) | P90 E2E Latency (second) | Overall Throughput (token per second) |
 | :--- | :--- | :--- | :--- | :--- | :--- |
@@ -185,7 +188,7 @@ kubectl delete namespace ${NAMESPACE}
 | **vLLM + CPU offloading 100GB** | 6.7 (-25.6%) | 20.2 (-3.3%) | 30.9 (-18.3%) | 44.2 (-11.1%) | 46,751.0 (+21.3%) |
 | **vLLM + LMCache CPU offloading 100GB** | 6.5 (-27.8%) | 18.8 (-10.0%) | 30.8 (-18.5%) | 43.0 (-13.5%) | 46,910.6 (+21.7%) |
 
-### Low Cache Performance (KVCache < HBM)
+### Low Cache Scenario (KVCache < HBM)
 
 | Medium Configuration | Mean TTFT (second) | P90 TTFT (second) | Mean E2E Latency (second) | P90 E2E Latency (second) | Overall Throughput (token per second) |
 | :--- | :--- | :--- | :--- | :--- | :--- |
