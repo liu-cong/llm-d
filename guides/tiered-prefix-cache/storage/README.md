@@ -20,6 +20,36 @@ This guide explains how to offload the vLLM prefix cache (KV cache) to shared st
 | llm-d FS Connector    | `modelserver/gpu/vllm/llm-d-fs-connector/`                              |
 | LMCache Connector     | `modelserver/gpu/vllm/lmcache-connector/`                              |
 
+
+<details>
+<summary><h4>Aboutllm-d FS Connector</h4></summary>
+
+The **llm-d FS connector** integrates with vLLM's native OffloadingConnector and stores KV blocks on shared storage that exposes a POSIX-compatible file API (for example IBM Storage Scale, CephFS, GCP Lustre, AWS Lustre).
+
+This enables prefix cache reuse across multiple vLLM instances and across nodes that mount the same shared path.
+
+**Key advantages:**
+
+* **Fully asynchronous I/O** - Uses vLLM's native offloading pipeline, enabling non-blocking KV cache reads and writes.
+* **File system agnostic** - Works with any storage backend that supports standard POSIX file operations.
+* **KV sharing across instances and nodes** - Multiple vLLM servers can reuse cached prefixes by accessing the same shared storage path.
+* **High throughput via parallelism** - I/O operations are parallelized across multiple threads to increase bandwidth and reduce tail latency.
+* **Minimal GPU compute interference** - Uses GPU DMA for data transfers, reducing interference with GPU compute kernels during load and store operations.
+
+**Note:** The storage connector does not handle cleanup or eviction of data on the shared storage. Storage capacity management must be handled by the underlying storage system or by an external controller. A simple reference implementation of a PVC-based evictor is available in the [kv-cache repository (PVC Evictor)](https://github.com/llm-d/llm-d-kv-cache), which can be used to automatically clean up old KV-cache files when storage thresholds are exceeded.
+
+For advanced configuration options and implementation details, see the [llm-d FS backend documentation](https://github.com/llm-d/llm-d-kv-cache/tree/main/kv_connectors/llmd_fs_backend).
+
+</details>
+
+
+<details>
+<summary><h4>About LMCache Connector</h4></summary>
+
+[LMCache](https://lmcache.ai) is an extension for LLM serving engines that enhances performance by reducing "Time to First Token" (TTFT) and increasing throughput, particularly for long-context scenarios. It provides integration to various storage backends. For more information, visit the [LMCache website](https://lmcache.ai).
+
+</details>
+
 ---
 
 ## Prerequisites
@@ -58,8 +88,13 @@ This guide explains how to offload the vLLM prefix cache (KV cache) to shared st
 Set your storage class depending on your environment:
 
 ```bash
-export STORAGE_CLASS=default # options: default, lustre, efs-sc
+export STORAGE_CLASS="" # leave empty to use the cluster default StorageClass; or set "lustre" / "efs-sc"
 ```
+
+To provision a managed GCP Lustre instance on GKE and configure the corresponding `StorageClass`, follow the [GCP Lustre guide](./manifests/backends/lustre/README.md).
+
+To provision AWS EFS and configure the corresponding `StorageClass`, follow the [EFS guide](./manifests/backends/aws/README.md).
+
 
 Create a PVC using the selected storage class:
 

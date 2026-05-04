@@ -4,7 +4,7 @@ metadata:
   name: llm-d-kv-cache-storage # If you change this, update the ./manifests/vllm patches accordingly.
 spec:
   accessModes:
-    - ReadWriteOnce
+    - ReadWriteMany
   resources:
     requests:
       storage: 9000Gi
