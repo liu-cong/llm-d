@@ -21,7 +21,7 @@ spec:
             - "0.8"
           env:
             - name: LMCACHE_LOCAL_DISK
-              value: "file:///mnt/files-storage/"
+              value: "file:///mnt/files-storage/kv-cache/"
             - name: LMCACHE_EXTRA_CONFIG
               value: "{\"use_odirect\":\"True\"}"
             - name: LMCACHE_MAX_LOCAL_DISK_SIZE

@@ -203,17 +203,17 @@ curl -s http://${IP}/v1/completions \
 # Check the shared PVC for written blocks
 POD=$(kubectl get pod -n ${NAMESPACE} -l llm-d.ai/role=decode -o jsonpath='{.items[0].metadata.name}')
 kubectl exec -n ${NAMESPACE} ${POD} -- du -sh /mnt/files-storage/kv-cache
-kubectl exec -n ${NAMESPACE} ${POD} -- find /mnt/files-storage/kv-cache -maxdepth 5 -type d
+kubectl exec -n ${NAMESPACE} ${POD} -- find /mnt/files-storage/kv-cache -maxdepth 5
 ```
 
 Expected output: `du -sh` shows hundreds of MB to several GB, and `find` lists a path like
-`/mnt/files-storage/kv-cache/<model>/<block-config>/<tp-config>/...`.
+`/mnt/files-storage/kv-cache/<model>/<block-config>/<tp-config>/...` (fs connector) or `/mnt/files-storage/kv-cache/<model>-xxx.pt` (lmcache connector).
 
 You can also confirm via vLLM's offload metrics (exposed at `/metrics` on each pod):
 
 ```bash
 export METRIC_NAME="vllm:kv_offload_total_bytes" # vllm:kv_offload_total_bytes for fs connector OR lmcache:local_storage_usage for lmcache connector
-kubectl exec -n ${NAMESPACE} ${POD} -- curl -s http://localhost:8000/metrics | grep '^$METRIC_NAME'
+kubectl exec -n ${NAMESPACE} ${POD} -- curl -s http://localhost:8000/metrics | grep "^$METRIC_NAME"
 ```
 
 ---
