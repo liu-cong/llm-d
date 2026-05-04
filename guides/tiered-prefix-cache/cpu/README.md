@@ -1,6 +1,6 @@
 # Offloading Prefix Cache to CPU Memory
 
-[![Nightly - tiered cache CPU E2E (GKE)](https://github.com/llm-d/llm-d/actions/workflows/nightly-e2e-tiered-prefix-cache-cpu-gke.yaml/badge.svg)](https://github.com/llm-d/llm-d/actions/workflows/nightly-e2e-tiered-prefix-cache-cpu-gke.yaml)
+[![Nightly - tiered cache CPU E2E (OCP)](https://github.com/llm-d/llm-d/actions/workflows/nightly-e2e-tiered-prefix-cache-ocp.yaml/badge.svg)](https://github.com/llm-d/llm-d/actions/workflows/nightly-e2e-tiered-prefix-cache-ocp.yaml)
 
 ## Overview
 
