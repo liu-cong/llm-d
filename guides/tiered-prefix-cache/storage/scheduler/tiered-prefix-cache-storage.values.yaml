@@ -1,3 +1,11 @@
+
+inferenceExtension:
+  extraServicePorts:
+    - name: http
+      port: 80
+      protocol: TCP
+      targetPort: 8081
+
 inferencePool:
   modelServers:
     matchLabels:

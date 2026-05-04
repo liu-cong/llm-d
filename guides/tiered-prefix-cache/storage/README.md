@@ -133,7 +133,20 @@ kubectl apply -n ${NAMESPACE} -k guides/recipes/modelserver/components/monitorin
 
 ## Verification
 
-### 1. Get the IP of the Proxy
+### 1. Check the PVC
+
+```bash
+kubectl get pvc -n ${NAMESPACE}
+```
+
+Output should show the PVC as `Bound`:
+
+```
+NAME         STATUS   VOLUME                  CAPACITY   ACCESS MODES   STORAGECLASS   VOLUMEATTRIBUTESCLASS   AGE
+<pvc-name>   Bound    pvc-3c793698-XXXXXXX    18000Gi    RWX            <storage-class>   <unset>              6d
+```
+
+### 2. Get the IP of the Proxy
 
 **Standalone Mode**
 
@@ -150,7 +163,7 @@ export IP=$(kubectl get gateway llm-d-inference-gateway -n ${NAMESPACE} -o jsonp
 
 </details>
 
-### 2. Send Test Requests
+### 3. Send Test Requests
 
 **Open a temporary interactive shell inside the cluster:**
 
@@ -172,37 +185,21 @@ curl -X POST http://${IP}/v1/completions \
         "prompt": "How are you today?"
     }' | jq
 ```
+### 4. Verify KV cache is offloaded to storage 
 
----
-
-### Check the PVC
-
-```bash
-kubectl get pvc -n ${NAMESPACE}
-```
-
-Output should show the PVC as `Bound`:
-
-```
-NAME         STATUS   VOLUME                  CAPACITY   ACCESS MODES   STORAGECLASS   VOLUMEATTRIBUTESCLASS   AGE
-<pvc-name>   Bound    pvc-3c793698-XXXXXXX    18000Gi    RWX            <storage-class>   <unset>              6d
-```
-
-### Verify KV cache is offloaded to storage
-
-<details>
-<summary><h4>Click here for llm-d FS Connector</h4></summary>
-
-Send a long prompt (one that crosses several `block_size` boundaries) to trigger offload, then inspect the PVC:
+**Send a long prompt (one that crosses several `block_size` boundaries) to trigger offload**
 
 ```bash
+# Run this inside the interactive shell created in step 3.
 # Long prompt (~3K tokens)
 PROMPT=$(printf 'Story: '; for i in $(seq 1 800); do printf 'alice met bob and they walked together. '; done)
-curl -s http://localhost:8000/v1/completions \
+jq -n --arg prompt "$PROMPT" '{"model":"Qwen/Qwen3-32B", "prompt":$prompt, "max_tokens":3, "temperature":0}' | \
+curl -s http://${IP}/v1/completions \
   -H 'Content-Type: application/json' \
-  -d "$(printf '{"model":"Qwen/Qwen3-32B","prompt":%s,"max_tokens":3,"temperature":0}' \
-        "$(printf '%s' "$PROMPT" | python3 -c 'import sys,json; print(json.dumps(sys.stdin.read()))')")"
+  -d @- | jq
+```
 
+```bash
 # Check the shared PVC for written blocks
 POD=$(kubectl get pod -n ${NAMESPACE} -l llm-d.ai/role=decode -o jsonpath='{.items[0].metadata.name}')
 kubectl exec -n ${NAMESPACE} ${POD} -- du -sh /mnt/files-storage/kv-cache
@@ -215,30 +212,9 @@ Expected output: `du -sh` shows hundreds of MB to several GB, and `find` lists a
 You can also confirm via vLLM's offload metrics (exposed at `/metrics` on each pod):
 
 ```bash
-kubectl exec -n ${NAMESPACE} ${POD} -- curl -s http://localhost:8000/metrics | grep '^vllm:kv_offload_total_bytes'
+export METRIC_NAME="vllm:kv_offload_total_bytes" # vllm:kv_offload_total_bytes for fs connector OR lmcache:local_storage_usage for lmcache connector
+kubectl exec -n ${NAMESPACE} ${POD} -- curl -s http://localhost:8000/metrics | grep '^$METRIC_NAME'
 ```
-
-A successful offload increments `vllm:kv_offload_total_bytes{transfer_type="GPU_to_SHARED_STORAGE"}`.
-
-</details>
-
-<details>
-<summary><h4>Click here for LMCache Connector</h4></summary>
-
-```bash
-export IP=localhost
-export PORT=8000
-export POD_NAME=llm-d-decode-xxxx-xxxx
-kubectl exec -it $POD_NAME -- curl -i http://${IP}:${PORT}/metrics | grep lmcache:local_storage_usage
-```
-
-Verify the folder size where the shared storage is mounted:
-
-```bash
-kubectl exec -it $POD_NAME -n ${NAMESPACE} -- du -sh /mnt/files-storage
-```
-
-</details>
 
 ---
 
