@@ -110,8 +110,6 @@ export INFRA_PROVIDER=base # base | gke
 kubectl apply -n ${NAMESPACE} -k guides/optimized-baseline/modelserver/gpu/vllm/${INFRA_PROVIDER}/
 ```
 
-See the [GKE Tuning Patch Component README](../recipes/modelserver/components/disable-gke-nccl-tuner-patch/README.md) for more details if deploying on GKE.
-
 For other backends (AMD GPU, Intel XPU, Gaudi, TPU, CPU), see [optimized-baseline → Deploy the Model Server](../optimized-baseline/README.md#2-deploy-the-model-server).
 
 ### 3. Enable monitoring (optional)

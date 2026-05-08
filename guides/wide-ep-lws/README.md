@@ -112,8 +112,6 @@ export INFRA_PROVIDER=gke # options: gke (H200), gke-a4 (B200), coreweave
 kubectl apply -n ${NAMESPACE} -k guides/${GUIDE_NAME}/modelserver/gpu/vllm/${INFRA_PROVIDER}
 ```
 
-See the [GKE Tuning Patch Component README](../recipes/modelserver/components/disable-gke-nccl-tuner-patch/README.md) for more details if deploying on GKE.
-
 
 ### 3. (Optional) Enable monitoring
 

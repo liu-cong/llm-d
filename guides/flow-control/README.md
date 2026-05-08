@@ -145,8 +145,6 @@ kubectl kustomize guides/optimized-baseline/modelserver/gpu/vllm/${INFRA_PROVIDE
   | kubectl apply -n ${NAMESPACE} -f -
 ```
 
-See the [GKE Tuning Patch Component README](../recipes/modelserver/components/disable-gke-nccl-tuner-patch/README.md) for more details if deploying on GKE.
-
 ### 3. Enable monitoring (optional)
 
 > [!NOTE]

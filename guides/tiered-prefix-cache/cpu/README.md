@@ -113,7 +113,6 @@ export CONNECTOR=offloading-connector # offloading-connector | lmcache-connector
 export INFRA_PROVIDER=base # base | gke
 kubectl apply -n ${NAMESPACE} -k guides/tiered-prefix-cache/cpu/modelserver/gpu/vllm/${CONNECTOR}/${INFRA_PROVIDER}/
 ```
-See the [GKE Tuning Patch Component README](../../../recipes/modelserver/components/disable-gke-nccl-tuner-patch/README.md) for more details if deploying on GKE.
 
 **For Google TPU v7:**
 ```bash
