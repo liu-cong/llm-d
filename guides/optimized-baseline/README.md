@@ -123,7 +123,7 @@ Try applying the patch:
 kubectl apply -n ${NAMESPACE} -k guides/${GUIDE_NAME}/modelserver/gpu/gke-patch/vllm/
 ```
 
-See [gke-patch/README.md](./modelserver/gpu/gke-patch/README.md) for more details.
+See the [GKE Tuning Patch Component README](../recipes/modelserver/components/gke-patch/README.md) for more details.
 
 </details>
 

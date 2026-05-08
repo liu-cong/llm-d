@@ -58,14 +58,24 @@ Two scorers make up the routing decision alongside the load-aware stack:
   git clone https://github.com/llm-d/llm-d.git && cd llm-d && git checkout ${branch}
   ```
 
-## Installation Instructions
-
-### 1. Prepare a Target Namespace
-
+- Set the following environment variables:
 ```bash
-export NAMESPACE=llm-d-precise
+export GAIE_VERSION=v1.5.0
+export GUIDE_NAME="precise-prefix-cache-aware"
+export NAMESPACE="llm-d-${GUIDE_NAME}"
+```
+- Install the Gateway API Inference Extension CRDs:
+```bash
+kubectl apply -k "https://github.com/kubernetes-sigs/gateway-api-inference-extension/config/crd?ref=${GAIE_VERSION}"
+```
+- Create a target namespace for the installation
+```bash
 kubectl create namespace ${NAMESPACE}
 ```
+
+## Installation Instructions
+
+### 1. Prepare HF Token
 
 Create the `llm-d-hf-token` secret in the namespace. The UDS tokenizer sidecar reads `HF_TOKEN` to reach gated tokenizers — Qwen/Qwen3-32B is public but the secret makes swapping in a gated model a no-op. See [helpers/hf-token.md](../../helpers/hf-token.md) for the full helper.
 
@@ -80,16 +90,16 @@ kubectl -n ${NAMESPACE} create secret generic llm-d-hf-token --from-literal=HF_T
 This deploys the llm-d Router in the simple [Standalone Mode](placeholder-link):
 
 ```bash
-helm plugin install guides/precise-prefix-cache-aware/scheduler/patches/uds-tokenizer   # once
-helm install precise-prefix-cache-aware \
+helm plugin install guides/${GUIDE_NAME}/scheduler/patches/uds-tokenizer   # once
+helm install ${GUIDE_NAME} \
   oci://registry.k8s.io/gateway-api-inference-extension/charts/standalone \
   -f guides/recipes/scheduler/base.values.yaml \
-  -f guides/precise-prefix-cache-aware/scheduler/precise-prefix-cache-aware.values.yaml \
+  -f guides/${GUIDE_NAME}/scheduler/${GUIDE_NAME}.values.yaml \
   --post-renderer uds-tokenizer \
-  -n ${NAMESPACE} --version v1.5.0
+  -n ${NAMESPACE} --version ${GAIE_VERSION}
 ```
 
-The release name `precise-prefix-cache-aware` is mandatory for standard deployments — the inference pool selector matches a guide label that pairs with this release.
+The release name `${GUIDE_NAME}` is mandatory for standard deployments — the inference pool selector matches a guide label that pairs with this release.
 
 <details>
 <summary><b>Why a helm post-renderer is required (chart limitation)</b></summary>
@@ -109,15 +119,15 @@ To use a Kubernetes Gateway managed proxy instead of the standalone Envoy sideca
 
    ```bash
    export PROVIDER_NAME=istio   # options: none, gke, agentgateway, istio
-   helm install precise-prefix-cache-aware \
+   helm install ${GUIDE_NAME} \
      oci://registry.k8s.io/gateway-api-inference-extension/charts/inferencepool \
      -f guides/recipes/scheduler/base.values.yaml \
-     -f guides/precise-prefix-cache-aware/scheduler/precise-prefix-cache-aware.values.yaml \
+     -f guides/${GUIDE_NAME}/scheduler/${GUIDE_NAME}.values.yaml \
      --set provider.name=${PROVIDER_NAME} \
      --set experimentalHttpRoute.enabled=true \
      --set experimentalHttpRoute.inferenceGatewayName=llm-d-inference-gateway \
      --post-renderer uds-tokenizer \
-     -n ${NAMESPACE} --version v1.5.0
+     -n ${NAMESPACE} --version ${GAIE_VERSION}
    ```
 
 </details>
@@ -127,7 +137,7 @@ To use a Kubernetes Gateway managed proxy instead of the standalone Envoy sideca
 Apply the Kustomize overlay for your backend (defaulting to NVIDIA GPU / vLLM):
 
 ```bash
-kubectl apply -n ${NAMESPACE} -k guides/precise-prefix-cache-aware/modelserver/gpu/vllm/
+kubectl apply -n ${NAMESPACE} -k guides/${GUIDE_NAME}/modelserver/gpu/vllm/
 ```
 
 ### 4. (Optional) Enable Monitoring
@@ -150,7 +160,7 @@ kubectl apply -n ${NAMESPACE} -k guides/precise-prefix-cache-aware/modelserver/g
 **Standalone Mode**
 
 ```bash
-export IP=$(kubectl get service precise-prefix-cache-aware-epp -n ${NAMESPACE} -o jsonpath='{.spec.clusterIP}')
+export IP=$(kubectl get service ${GUIDE_NAME}-epp -n ${NAMESPACE} -o jsonpath='{.spec.clusterIP}')
 ```
 
 <details>
@@ -209,7 +219,7 @@ curl -LJO "https://raw.githubusercontent.com/llm-d/llm-d/main/guides/precise-pre
 ### 3. Execute Benchmark
 
 ```bash
-export IP=$(kubectl get service precise-prefix-cache-aware-epp -n ${NAMESPACE} -o jsonpath='{.spec.clusterIP}')
+export IP=$(kubectl get service ${GUIDE_NAME}-epp -n ${NAMESPACE} -o jsonpath='{.spec.clusterIP}')
 envsubst < guide.yaml > config.yaml
 ./run_only.sh -c config.yaml -o ./results
 ```
@@ -217,8 +227,8 @@ envsubst < guide.yaml > config.yaml
 ## Cleanup
 
 ```bash
-helm uninstall precise-prefix-cache-aware -n ${NAMESPACE}
-kubectl delete -n ${NAMESPACE} -k guides/precise-prefix-cache-aware/modelserver/gpu/vllm/
+helm uninstall ${GUIDE_NAME} -n ${NAMESPACE}
+kubectl delete -n ${NAMESPACE} -k guides/${GUIDE_NAME}/modelserver/gpu/vllm/
 ```
 
 ## How It Works

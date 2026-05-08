@@ -113,6 +113,21 @@ export CONNECTOR=offloading-connector # offloading-connector | lmcache-connector
 kubectl apply -n ${NAMESPACE} -k guides/tiered-prefix-cache/cpu/modelserver/${ACCELERATOR}/vllm/${CONNECTOR}
 ```
 
+<details>
+<summary><h4>If you run into NCCL errors on GKE</h4></summary>
+
+If you run into NCCL tuner initialization errors on GKE node environments where the gIB NCCL RDMA libraries are present, you can apply the optional GKE tuning patch. 
+
+Add the GKE patch component to your overlay's `kustomization.yaml` under the `components` field:
+
+```yaml
+components:
+  - ../../../../../recipes/modelserver/components/gke-patch
+```
+
+And re-apply the configuration. See the [GKE Tuning Patch Component README](../../../recipes/modelserver/components/gke-patch/README.md) for more details.
+</details>
+
 > [!NOTE]
 > To enable tiered prefix caching, we customize the `inferenceExtension` configuration. We configure two prefix cache scorers: one for the GPU/TPU cache and another for the CPU cache.
 > LRU capacity for the CPU cache must be manually configured (`lruCapacityPerServer`) because vLLM currently does not emit CPU block metrics.

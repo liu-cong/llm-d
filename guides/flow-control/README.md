@@ -144,6 +144,22 @@ kubectl kustomize guides/optimized-baseline/modelserver/gpu/vllm/ \
   | kubectl apply -n ${NAMESPACE} -f -
 ```
 
+<details>
+<summary><h4>If you run into NCCL errors on GKE</h4></summary>
+
+If you run into NCCL tuner initialization errors on GKE node environments where the gIB NCCL RDMA libraries are present, you can apply the optional GKE tuning patch. 
+
+Since this guide inherits its model server from the `optimized-baseline`, you can dynamically apply the baseline's GKE patch:
+
+```bash
+kubectl kustomize guides/optimized-baseline/modelserver/gpu/gke-patch/vllm/ \
+  | sed "s/optimized-baseline/${GUIDE_NAME}/g" \
+  | kubectl apply -n ${NAMESPACE} -f -
+```
+
+See the [GKE Tuning Patch Component README](../recipes/modelserver/components/gke-patch/README.md) for more details.
+</details>
+
 ### 3. Enable monitoring (optional)
 
 > [!NOTE]

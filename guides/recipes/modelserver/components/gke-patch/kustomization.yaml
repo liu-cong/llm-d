@@ -1,0 +1,22 @@
+# TODO(Remove this patch once https://github.com/llm-d/llm-d/pull/1147 is built to the llm-d image).
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+
+patches:
+  - target:
+      kind: Deployment
+    patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: ignored-name
+      spec:
+        template:
+          spec:
+            containers:
+              - name: modelserver
+                env:
+                  - name: NCCL_TUNER_PLUGIN
+                    value: "none"
+                  - name: NCCL_NET_PLUGIN
+                    value: ""
