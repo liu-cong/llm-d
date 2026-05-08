@@ -36,7 +36,7 @@ jobs:
       namespace: llm-d-nightly-predicted-latency-gke
       gateway_host: 'predicted-latency-based-scheduling-epp'
       custom_deploy_script: |
-        kubectl apply -k guides/optimized-baseline/modelserver/gpu/gke-patch/vllm -n ${NAMESPACE}
+        kubectl apply -k guides/optimized-baseline/modelserver/gpu/vllm/gke -n ${NAMESPACE}
         # CI-only: disable EPP /metrics auth so the validate script's curl pod
         # can scrape predicted/actual TTFT histograms without a bearer token.
         # This adds --metrics-endpoint-auth=false to the EPP container; the

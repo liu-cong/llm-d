@@ -34,9 +34,9 @@ jobs:
       namespace: llm-d-nightly-prefix-cache-ocp
       gateway_host: 'precise-prefix-cache-aware-epp'
       custom_deploy_script: |
-        yq '.spec.template.spec.priorityClassName="nightly-gpu-critical"' -i guides/precise-prefix-cache-aware/modelserver/gpu/vllm/patch-vllm.yaml
-        yq '.spec.replicas=2' -i guides/precise-prefix-cache-aware/modelserver/gpu/vllm/patch-vllm.yaml
-        kubectl apply -k guides/precise-prefix-cache-aware/modelserver/gpu/vllm -n ${NAMESPACE}
+        yq '.spec.template.spec.priorityClassName="nightly-gpu-critical"' -i guides/precise-prefix-cache-aware/modelserver/gpu/vllm/base/patch-vllm.yaml
+        yq '.spec.replicas=2' -i guides/precise-prefix-cache-aware/modelserver/gpu/vllm/base/patch-vllm.yaml
+        kubectl apply -k guides/precise-prefix-cache-aware/modelserver/gpu/vllm/base -n ${NAMESPACE}
         helm install precise-prefix-cache-aware \
           oci://registry.k8s.io/gateway-api-inference-extension/charts/standalone \
           -f guides/recipes/scheduler/base.values.yaml \

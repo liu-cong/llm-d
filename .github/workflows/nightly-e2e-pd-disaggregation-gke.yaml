@@ -30,7 +30,7 @@ jobs:
       namespace: llm-d-nightly-pd-gke
       gateway_type: gke
       custom_deploy_script: |
-        kubectl apply -k guides/pd-disaggregation/modelserver/gpu/vllm/base -n ${NAMESPACE}
+        kubectl apply -k guides/pd-disaggregation/modelserver/gpu/vllm/gke -n ${NAMESPACE}
         kubectl apply -k guides/recipes/gateway/gke-l7-regional-external-managed -n ${NAMESPACE}
         helm install pd-disaggregation \
           oci://registry.k8s.io/gateway-api-inference-extension/charts/inferencepool \
