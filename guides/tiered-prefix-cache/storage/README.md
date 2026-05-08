@@ -145,25 +145,16 @@ Apply the Kustomize overlay corresponding to your desired connector backend.
 
 <details>
 <summary><h4>Click here for GCP Lustre</h4></summary>
-For GCP lustre, please apply `llm-d-fs-connector-lustre` or `llm-d-fs-connector-lustre` which contains a patch to allow vLLM to write to Lustre.
+For GCP lustre, please apply `llm-d-fs-connector-lustre` or `lmcache-connector-lustre` which contains a patch to allow vLLM to write to Lustre.
 </details>
 
 ```bash
 export CONNECTOR=llm-d-fs-connector # llm-d-fs-connector | lmcache-connector | llm-d-fs-connector-lustre | lmcache-connector-lustre
-kubectl apply -n ${NAMESPACE} -k guides/tiered-prefix-cache/storage/modelserver/gpu/vllm/${CONNECTOR}
+export INFRA_PROVIDER=base # base | gke
+kubectl apply -n ${NAMESPACE} -k guides/tiered-prefix-cache/storage/modelserver/gpu/vllm/${CONNECTOR}/${INFRA_PROVIDER}/
 ```
 
-<details>
-<summary><h4>If you run into NCCL errors on GKE</h4></summary>
-
-If you run into NCCL tuner initialization errors on GKE node environments where the gIB NCCL RDMA libraries are present, apply the optional GKE tuning patch overlay directly:
-
-```bash
-kubectl apply -n ${NAMESPACE} -k guides/tiered-prefix-cache/storage/modelserver/gpu/vllm/${CONNECTOR}/disable-gke-nccl-tuner-patch/
-```
-
-See the [GKE Tuning Patch Component README](../../../recipes/modelserver/components/gke-patch/README.md) for more details.
-</details>
+See the [GKE Tuning Patch Component README](../../../recipes/modelserver/components/disable-gke-nccl-tuner-patch/README.md) for more details if deploying on GKE.
 
 ---
 

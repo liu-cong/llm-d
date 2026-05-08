@@ -28,8 +28,8 @@ This guide includes configurations for the following accelerators:
 
 | Backend             | Directory                  | Notes                                      |
 | ------------------- | -------------------------- | ------------------------------------------ |
-| NVIDIA GPU          | `modelserver/gpu/vllm/base/`    | Default configuration                      |
-| NVIDIA GPU (SGLang) | `modelserver/gpu/sglang/base/`  | SGLang inference server                    |
+| NVIDIA GPU          | `modelserver/gpu/vllm/${INFRA_PROVIDER}/`    | Default configuration (`INFRA_PROVIDER` options: `base`, `gke`)                      |
+| NVIDIA GPU (SGLang) | `modelserver/gpu/sglang/${INFRA_PROVIDER}/`  | SGLang inference server (`INFRA_PROVIDER` options: `base`, `gke`)                    |
 | AMD GPU             | `modelserver/amd/vllm/`    | AMD GPU                                    |
 | AMD GPU (SGLang)    | `modelserver/amd/sglang`   | AMD GPU                                    |
 | Intel XPU           | `modelserver/xpu/vllm/`    | Intel Data Center GPU Max 1550+            |
@@ -111,21 +111,11 @@ helm install ${GUIDE_NAME} \
 Apply the Kustomize overlays for your specific backend (defaulting to NVIDIA GPU / vLLM):
 
 ```bash
-kubectl apply -n ${NAMESPACE} -k guides/${GUIDE_NAME}/modelserver/gpu/vllm/base/
+export INFRA_PROVIDER=base # base | gke
+kubectl apply -n ${NAMESPACE} -k guides/${GUIDE_NAME}/modelserver/gpu/vllm/${INFRA_PROVIDER}/
 ```
 
-<details>
-<summary><h4>If you run into NCCL errors on GKE</h4></summary>
-
-Try applying the patch:
-
-```bash
-kubectl apply -n ${NAMESPACE} -k guides/${GUIDE_NAME}/modelserver/gpu/vllm/disable-gke-nccl-tuner-patch/
-```
-
-See the [GKE Tuning Patch Component README](../recipes/modelserver/components/gke-patch/README.md) for more details.
-
-</details>
+See the [GKE Tuning Patch Component README](../recipes/modelserver/components/disable-gke-nccl-tuner-patch/README.md) for more details if deploying on GKE.
 
 <details>
 <summary><h4>Other Accelerators</h4></summary>

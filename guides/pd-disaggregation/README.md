@@ -125,23 +125,12 @@ Apply the Kustomize overlays for your specific backend (defaulting to NVIDIA GPU
 > overlays deal with the specifics of each cloud's setup.
 
 ```bash
-export INFRA_PROVIDER=base # coreweave
+export INFRA_PROVIDER=base # base | coreweave | gke
 
 kubectl apply -n ${NAMESPACE} -k guides/${GUIDE_NAME}/modelserver/gpu/vllm/${INFRA_PROVIDER}
 ```
 
-<details>
-<summary><h4>If you run into NCCL errors on GKE</h4></summary>
-
-If you run into NCCL tuner initialization errors on GKE node environments where the gIB NCCL RDMA libraries are present, apply the optional GKE tuning patch overlay directly:
-
-```bash
-export INFRA_PROVIDER=disable-gke-nccl-tuner-patch
-kubectl apply -n ${NAMESPACE} -k guides/${GUIDE_NAME}/modelserver/gpu/vllm/${INFRA_PROVIDER}
-```
-
-See the [GKE Tuning Patch Component README](../recipes/modelserver/components/gke-patch/README.md) for more details.
-</details>
+See the [GKE Tuning Patch Component README](../recipes/modelserver/components/disable-gke-nccl-tuner-patch/README.md) for more details if deploying on GKE.
 
 ### 3. Enable Monitoring (optional)
 

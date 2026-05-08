@@ -3,4 +3,4 @@ kind: Kustomization
 resources:
   - ../base
 components:
-  - ../../../../../../../recipes/modelserver/components/gke-patch
+  - ../../../../../../../recipes/modelserver/components/disable-gke-nccl-tuner-patch

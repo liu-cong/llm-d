@@ -105,25 +105,20 @@ helm install ${GUIDE_NAME} \
 
 ### 2. Deploy the Model Server
 
-Apply the Kustomize overlay setup matching your preferred offloading medium.
+Apply the Kustomize overlay setup matching your preferred offloading medium:
 
+**For NVIDIA GPU:**
 ```bash
-export ACCELERATOR=gpu # gpu|tpu-v7
-export CONNECTOR=offloading-connector # offloading-connector | lmcache-connector | tpu-offloading-connector
-kubectl apply -n ${NAMESPACE} -k guides/tiered-prefix-cache/cpu/modelserver/${ACCELERATOR}/vllm/${CONNECTOR}
+export CONNECTOR=offloading-connector # offloading-connector | lmcache-connector
+export INFRA_PROVIDER=base # base | gke
+kubectl apply -n ${NAMESPACE} -k guides/tiered-prefix-cache/cpu/modelserver/gpu/vllm/${CONNECTOR}/${INFRA_PROVIDER}/
 ```
+See the [GKE Tuning Patch Component README](../../../recipes/modelserver/components/disable-gke-nccl-tuner-patch/README.md) for more details if deploying on GKE.
 
-<details>
-<summary><h4>If you run into NCCL errors on GKE</h4></summary>
-
-If you run into NCCL tuner initialization errors on GKE node environments where the gIB NCCL RDMA libraries are present, apply the optional GKE tuning patch overlay directly:
-
+**For Google TPU v7:**
 ```bash
-kubectl apply -n ${NAMESPACE} -k guides/tiered-prefix-cache/cpu/modelserver/${ACCELERATOR}/vllm/${CONNECTOR}/disable-gke-nccl-tuner-patch/
+kubectl apply -n ${NAMESPACE} -k guides/tiered-prefix-cache/cpu/modelserver/tpu-v7/vllm/tpu-offloading-connector/
 ```
-
-See the [GKE Tuning Patch Component README](../../../recipes/modelserver/components/gke-patch/README.md) for more details.
-</details>
 
 > [!NOTE]
 > To enable tiered prefix caching, we customize the `inferenceExtension` configuration. We configure two prefix cache scorers: one for the GPU/TPU cache and another for the CPU cache.

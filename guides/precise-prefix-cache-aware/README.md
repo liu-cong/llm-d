@@ -137,21 +137,11 @@ To use a Kubernetes Gateway managed proxy instead of the standalone Envoy sideca
 Apply the Kustomize overlay for your backend (defaulting to NVIDIA GPU / vLLM):
 
 ```bash
-kubectl apply -n ${NAMESPACE} -k guides/${GUIDE_NAME}/modelserver/gpu/vllm/base/
+export INFRA_PROVIDER=base # base | gke
+kubectl apply -n ${NAMESPACE} -k guides/${GUIDE_NAME}/modelserver/gpu/vllm/${INFRA_PROVIDER}/
 ```
 
-<details>
-<summary><h4>If you run into NCCL errors on GKE</h4></summary>
-
-Try applying the patch:
-
-```bash
-kubectl apply -n ${NAMESPACE} -k guides/${GUIDE_NAME}/modelserver/gpu/vllm/disable-gke-nccl-tuner-patch/
-```
-
-See the [GKE Tuning Patch Component README](../../recipes/modelserver/components/gke-patch/README.md) for more details.
-
-</details>
+See the [GKE Tuning Patch Component README](../../recipes/modelserver/components/disable-gke-nccl-tuner-patch/README.md) for more details if deploying on GKE.
 
 ### 4. (Optional) Enable Monitoring
 

@@ -139,26 +139,13 @@ Instead of maintaining duplicate hardware configurations, we dynamically render 
 Deploy the model server (defaulting to NVIDIA GPU / vLLM) by running:
 
 ```bash
-kubectl kustomize guides/optimized-baseline/modelserver/gpu/vllm/base/ \
+export INFRA_PROVIDER=base # base | gke
+kubectl kustomize guides/optimized-baseline/modelserver/gpu/vllm/${INFRA_PROVIDER}/ \
   | sed "s/optimized-baseline/${GUIDE_NAME}/g" \
   | kubectl apply -n ${NAMESPACE} -f -
 ```
 
-<details>
-<summary><h4>If you run into NCCL errors on GKE</h4></summary>
-
-If you run into NCCL tuner initialization errors on GKE node environments where the gIB NCCL RDMA libraries are present, you can apply the optional GKE tuning patch. 
-
-Since this guide inherits its model server from the `optimized-baseline`, you can dynamically apply the baseline's GKE patch:
-
-```bash
-kubectl kustomize guides/optimized-baseline/modelserver/gpu/vllm/disable-gke-nccl-tuner-patch/ \
-  | sed "s/optimized-baseline/${GUIDE_NAME}/g" \
-  | kubectl apply -n ${NAMESPACE} -f -
-```
-
-See the [GKE Tuning Patch Component README](../recipes/modelserver/components/gke-patch/README.md) for more details.
-</details>
+See the [GKE Tuning Patch Component README](../recipes/modelserver/components/disable-gke-nccl-tuner-patch/README.md) for more details if deploying on GKE.
 
 ### 3. Enable monitoring (optional)
 
