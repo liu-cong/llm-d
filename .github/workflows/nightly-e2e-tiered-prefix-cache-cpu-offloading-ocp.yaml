@@ -51,7 +51,7 @@ jobs:
         #  echo "Image override applied: ${IMAGE_OVERRIDE}"
         #fi
 
-        kubectl apply -k guides/tiered-prefix-cache/cpu/modelserver/gpu/vllm/offloading-connector -n "$NAMESPACE"
+        kubectl apply -k guides/tiered-prefix-cache/cpu/modelserver/gpu/vllm/offloading-connector/base -n "$NAMESPACE"
 
         helm install tiered-prefix-cache \
         oci://registry.k8s.io/gateway-api-inference-extension/charts/standalone \
