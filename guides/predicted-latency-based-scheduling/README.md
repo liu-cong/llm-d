@@ -106,7 +106,7 @@ helm install ${GUIDE_NAME} \
 This guide reuses the model server manifests from the optimized-baseline guide (the values files above already select pods labeled `llm-d.ai/guide=optimized-baseline`). Apply the default NVIDIA GPU / vLLM overlay:
 
 ```bash
-kubectl apply -n ${NAMESPACE} -k guides/optimized-baseline/modelserver/gpu/vllm/
+kubectl apply -n ${NAMESPACE} -k guides/optimized-baseline/modelserver/gpu/vllm/base/
 ```
 
 <details>
@@ -117,7 +117,7 @@ If you run into NCCL tuner initialization errors on GKE node environments where 
 Since this guide inherits its model server from the `optimized-baseline`, you can dynamically apply the baseline's GKE patch:
 
 ```bash
-kubectl apply -n ${NAMESPACE} -k guides/optimized-baseline/modelserver/gpu/gke-patch/vllm/
+kubectl apply -n ${NAMESPACE} -k guides/optimized-baseline/modelserver/gpu/vllm/disable-gke-nccl-tuner-patch/
 ```
 
 See the [GKE Tuning Patch Component README](../recipes/modelserver/components/gke-patch/README.md) for more details.

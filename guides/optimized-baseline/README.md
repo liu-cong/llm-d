@@ -28,8 +28,8 @@ This guide includes configurations for the following accelerators:
 
 | Backend             | Directory                  | Notes                                      |
 | ------------------- | -------------------------- | ------------------------------------------ |
-| NVIDIA GPU          | `modelserver/gpu/vllm/`    | Default configuration                      |
-| NVIDIA GPU (SGLang) | `modelserver/gpu/sglang/`  | SGLang inference server                    |
+| NVIDIA GPU          | `modelserver/gpu/vllm/base/`    | Default configuration                      |
+| NVIDIA GPU (SGLang) | `modelserver/gpu/sglang/base/`  | SGLang inference server                    |
 | AMD GPU             | `modelserver/amd/vllm/`    | AMD GPU                                    |
 | AMD GPU (SGLang)    | `modelserver/amd/sglang`   | AMD GPU                                    |
 | Intel XPU           | `modelserver/xpu/vllm/`    | Intel Data Center GPU Max 1550+            |
@@ -111,7 +111,7 @@ helm install ${GUIDE_NAME} \
 Apply the Kustomize overlays for your specific backend (defaulting to NVIDIA GPU / vLLM):
 
 ```bash
-kubectl apply -n ${NAMESPACE} -k guides/${GUIDE_NAME}/modelserver/gpu/vllm/
+kubectl apply -n ${NAMESPACE} -k guides/${GUIDE_NAME}/modelserver/gpu/vllm/base/
 ```
 
 <details>
@@ -120,7 +120,7 @@ kubectl apply -n ${NAMESPACE} -k guides/${GUIDE_NAME}/modelserver/gpu/vllm/
 Try applying the patch:
 
 ```bash
-kubectl apply -n ${NAMESPACE} -k guides/${GUIDE_NAME}/modelserver/gpu/gke-patch/vllm/
+kubectl apply -n ${NAMESPACE} -k guides/${GUIDE_NAME}/modelserver/gpu/vllm/disable-gke-nccl-tuner-patch/
 ```
 
 See the [GKE Tuning Patch Component README](../recipes/modelserver/components/gke-patch/README.md) for more details.

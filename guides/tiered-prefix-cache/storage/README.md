@@ -156,16 +156,13 @@ kubectl apply -n ${NAMESPACE} -k guides/tiered-prefix-cache/storage/modelserver/
 <details>
 <summary><h4>If you run into NCCL errors on GKE</h4></summary>
 
-If you run into NCCL tuner initialization errors on GKE node environments where the gIB NCCL RDMA libraries are present, you can apply the optional GKE tuning patch. 
+If you run into NCCL tuner initialization errors on GKE node environments where the gIB NCCL RDMA libraries are present, apply the optional GKE tuning patch overlay directly:
 
-Add the GKE patch component to your overlay's `kustomization.yaml` under the `components` field:
-
-```yaml
-components:
-  - ../../../../../recipes/modelserver/components/gke-patch
+```bash
+kubectl apply -n ${NAMESPACE} -k guides/tiered-prefix-cache/storage/modelserver/gpu/vllm/${CONNECTOR}/disable-gke-nccl-tuner-patch/
 ```
 
-And re-apply the configuration. See the [GKE Tuning Patch Component README](../../../recipes/modelserver/components/gke-patch/README.md) for more details.
+See the [GKE Tuning Patch Component README](../../../recipes/modelserver/components/gke-patch/README.md) for more details.
 </details>
 
 ---

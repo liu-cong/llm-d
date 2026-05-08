@@ -1,12 +1,13 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
-
 resources:
-  - ../lmcache-connector
+  # Use the CPU offloading base to form a tiered cache structure: HBM - CPU - storage.
+  - ../../../../../../cpu/modelserver/gpu/vllm/lmcache-connector/base
 
 labels:
   - pairs:
-      llm-d.ai/subguide: tiered-prefix-cache-storage-lustre
+      llm-d.ai/guide: tiered-prefix-cache-storage
+      llm-d.ai/subguide: tiered-prefix-cache-storage
     includeSelectors: true
     includeTemplates: true
     fields:
@@ -39,6 +40,5 @@ labels:
         kind: PodMonitor
         path: spec/selector/matchLabels
         create: true
-
 patches:
   - path: patch-vllm.yaml

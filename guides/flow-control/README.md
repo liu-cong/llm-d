@@ -139,7 +139,7 @@ Instead of maintaining duplicate hardware configurations, we dynamically render 
 Deploy the model server (defaulting to NVIDIA GPU / vLLM) by running:
 
 ```bash
-kubectl kustomize guides/optimized-baseline/modelserver/gpu/vllm/ \
+kubectl kustomize guides/optimized-baseline/modelserver/gpu/vllm/base/ \
   | sed "s/optimized-baseline/${GUIDE_NAME}/g" \
   | kubectl apply -n ${NAMESPACE} -f -
 ```
@@ -152,7 +152,7 @@ If you run into NCCL tuner initialization errors on GKE node environments where 
 Since this guide inherits its model server from the `optimized-baseline`, you can dynamically apply the baseline's GKE patch:
 
 ```bash
-kubectl kustomize guides/optimized-baseline/modelserver/gpu/gke-patch/vllm/ \
+kubectl kustomize guides/optimized-baseline/modelserver/gpu/vllm/disable-gke-nccl-tuner-patch/ \
   | sed "s/optimized-baseline/${GUIDE_NAME}/g" \
   | kubectl apply -n ${NAMESPACE} -f -
 ```
