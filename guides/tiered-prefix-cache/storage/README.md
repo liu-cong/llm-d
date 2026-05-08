@@ -141,15 +141,10 @@ helm install llm-d-infpool \
 
 ### 3. Deploy the Model Server
 
-Apply the Kustomize overlay corresponding to your desired connector backend. 
-
-<details>
-<summary><h4>Click here for GCP Lustre</h4></summary>
-For GCP lustre, please apply `llm-d-fs-connector-lustre` or `lmcache-connector-lustre` which contains a patch to allow vLLM to write to Lustre.
-</details>
+Apply the Kustomize overlay corresponding to your desired connector backend:
 
 ```bash
-export CONNECTOR=llm-d-fs-connector # llm-d-fs-connector | lmcache-connector | llm-d-fs-connector-lustre | lmcache-connector-lustre
+export CONNECTOR=llm-d-fs-connector # llm-d-fs-connector | lmcache-connector
 export INFRA_PROVIDER=base # base | gke
 kubectl apply -n ${NAMESPACE} -k guides/tiered-prefix-cache/storage/modelserver/gpu/vllm/${CONNECTOR}/${INFRA_PROVIDER}/
 ```
