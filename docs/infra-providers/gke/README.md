@@ -115,10 +115,6 @@ The root cause of this issue is that the CUDA 12.8 and 12.9 NVIDIA Docker images
 
 A workaround exists in llm-d container images and vLLM after commit [5546acb463243ce](https://github.com/vllm-project/vllm/commit/5546acb463243ce3c166dc620c764a93351b7c69). Users who customize their vLLM image will need to ensure their LD_LIBRARY_PATH in their vLLM image includes `/usr/local/nvidia/lib64`.
 
-#### Google InfiniBand 1.10 required for vLLM 0.11.0 (gIB)
-
-vLLM v0.11.0 and newer require NCCL 2.27, which is supported in gIB 1.10+. See the appropriate section in cluster configuration for installing the RDMA binary and configuring NCCL (e.g. [for A3 Ultra / A4](https://cloud.google.com/ai-hypercomputer/docs/create/gke-ai-hypercompute-custom#install-rdma-configure-nccl)).  To get 1.10, use at least the version of the RDMA installer DaemonSet described in this [1.10 pull request](https://github.com/GoogleCloudPlatform/container-engine-accelerators/pull/511).
-
 #### NVSHMEM reports `Unable to create ah.` on initialization for DeepEP
 
 Some versions (3.3.20 to 3.4.5) of NVSHMEM contain a bug where the `ibv_ah_attr` struct passed to device initialization was not zeroed out in code. Versions of the Linux kernel that validate the value of the `static_rate` field could fail to start due to an `EINVAL` and reporting `Unable to create ah.` when using the DeepEP kernels for wide expert parallelism.
