@@ -45,7 +45,7 @@ jobs:
       recommended_gpus: 32
       accelerator_type: H200
       pod_wait_timeout: '35m'
-      pod_readiness_delay: 480
+      pod_readiness_delay: 0
       gateway_host: 'wide-ep-lws-epp'
       pre_deploy_script: |
         echo "Installing LeaderWorkerSet for wide-ep-lws..."

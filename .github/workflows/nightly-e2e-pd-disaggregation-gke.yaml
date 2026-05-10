@@ -53,7 +53,7 @@ jobs:
       recommended_gpus: 16
       accelerator_type: H200
       pod_wait_timeout: '30m'
-      pod_readiness_delay: 180
+      pod_readiness_delay: 0
       allow_gpu_preemption: true
       llm_d_ref: ${{ github.ref }}
       skip_cleanup: ${{ github.event.inputs.skip_cleanup == 'true' }}
