@@ -49,9 +49,14 @@ You can use any of the following exact names or glob patterns matching them:
 | `pd-disaggregation-cks` | CKS | [pd-disaggregation](../guides/pd-disaggregation) |
 | `pd-disaggregation-gke` | GKE | [pd-disaggregation](../guides/pd-disaggregation) |
 | `pd-disaggregation-ocp` | OCP | [pd-disaggregation](../guides/pd-disaggregation) |
+| `precise-prefix-cache-cks` | CKS | [precise-prefix-cache-aware](../guides/precise-prefix-cache-aware) |
+| `precise-prefix-cache-gke` | GKE | [precise-prefix-cache-aware](../guides/precise-prefix-cache-aware) |
 | `precise-prefix-cache-ocp` | OCP | [precise-prefix-cache-aware](../guides/precise-prefix-cache-aware) |
-| `tiered-prefix-cache-gke` | GKE | [tiered-prefix-cache](../guides/tiered-prefix-cache) |
-| `tiered-prefix-cache-ocp` | OCP | [tiered-prefix-cache](../guides/tiered-prefix-cache) |
+| `predicted-latency-cks` | CKS | [predicted-latency-based-scheduling](../guides/predicted-latency-based-scheduling) |
+| `predicted-latency-gke` | GKE | [predicted-latency-based-scheduling](../guides/predicted-latency-based-scheduling) |
+| `tiered-prefix-cache-cpu-offloading-gke` | GKE | [tiered-prefix-cache](../guides/tiered-prefix-cache) |
+| `tiered-prefix-cache-cpu-offloading-lmcache-gke` | GKE | [tiered-prefix-cache](../guides/tiered-prefix-cache) |
+| `tiered-prefix-cache-cpu-offloading-ocp` | OCP | [tiered-prefix-cache](../guides/tiered-prefix-cache) |
 | `wide-ep-lws-cks` | CKS | [wide-ep-lws](../guides/wide-ep-lws) |
 | `wide-ep-lws-gke` | GKE | [wide-ep-lws](../guides/wide-ep-lws) |
 | `wide-ep-lws-ocp` | OCP | [wide-ep-lws](../guides/wide-ep-lws) |
