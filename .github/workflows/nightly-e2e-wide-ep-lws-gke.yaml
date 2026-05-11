@@ -64,23 +64,16 @@ jobs:
       # Custom deploy: kustomize (GKE overlay) + helm + gateway recipe
       # Mirrors the existing e2e-wide-ep-accelerator-gke.yaml deploy pattern
       custom_deploy_script: |
-        NAMESPACE="llm-d-nightly-wide-ep-gke"
-        echo "Deploying wide-ep-lws on GKE via kustomize + helm..."
-
-        # 1. Deploy model server via kustomize
-        echo "Deploying model server..."
-        kubectl apply -k guides/wide-ep-lws/modelserver/gpu/vllm/gke -n "$NAMESPACE"
-
-        # 2. Deploy Standalone Inference Scheduler via helm
-        echo "Deploying Standalone Inference Scheduler..."
-        helm install wide-ep-lws \
+        export GAIE_VERSION=v1.5.0
+        export GUIDE_NAME="wide-ep-lws"
+        export INFRA_PROVIDER="gke"
+        kubectl apply -n ${NAMESPACE} -k guides/${GUIDE_NAME}/modelserver/gpu/vllm/${INFRA_PROVIDER}
+        helm install ${GUIDE_NAME} \
           oci://registry.k8s.io/gateway-api-inference-extension/charts/standalone \
           -f guides/recipes/scheduler/base.values.yaml \
           -f guides/recipes/scheduler/pd.values.yaml \
-          -f guides/wide-ep-lws/scheduler/wide-ep-lws.values.yaml \
-          -n "$NAMESPACE" --version v1.5.0
-
-        echo "Deployment complete"
+          -f guides/${GUIDE_NAME}/scheduler/${GUIDE_NAME}.values.yaml \
+          -n ${NAMESPACE} --version ${GAIE_VERSION}
       # Wide-EP-specific validation: check prefill + decode pods
       e2e_validate_args: '-v'
       allow_gpu_preemption: true

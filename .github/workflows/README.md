@@ -43,7 +43,7 @@ You can use any of the following exact names or glob patterns matching them:
 
 | Name | Environment | Guide / Path |
 | :--- | :--- | :--- |
-| `optimized-baseline-cks` | Cloud Kubernetes Service (CKS) | [optimized-baseline](../guides/optimized-baseline) |
+| `optimized-baseline-cks` | CoreWeave Kubernetes Service (CKS) | [optimized-baseline](../guides/optimized-baseline) |
 | `optimized-baseline-gke` | Google Kubernetes Engine (GKE) | [optimized-baseline](../guides/optimized-baseline) |
 | `optimized-baseline-ocp` | OpenShift (OCP) | [optimized-baseline](../guides/optimized-baseline) |
 | `pd-disaggregation-cks` | CKS | [pd-disaggregation](../guides/pd-disaggregation) |
@@ -55,8 +55,8 @@ You can use any of the following exact names or glob patterns matching them:
 | `wide-ep-lws-cks` | CKS | [wide-ep-lws](../guides/wide-ep-lws) |
 | `wide-ep-lws-gke` | GKE | [wide-ep-lws](../guides/wide-ep-lws) |
 | `wide-ep-lws-ocp` | OCP | [wide-ep-lws](../guides/wide-ep-lws) |
-| `wva-cks` | CKS | [wva](../guides/recipes/scheduler/features) |
-| `wva-ocp` | OCP | [wva](../guides/recipes/scheduler/features) |
+| `wva-cks` | CKS | [wva](../guides/workload-autoscaling/README.wva.md) |
+| `wva-ocp` | OCP | [wva](../guides/workload-autoscaling/README.wva.md) |
 
 ---
 
