@@ -48,7 +48,7 @@ jobs:
           oci://registry.k8s.io/gateway-api-inference-extension/charts/standalone \
           -f guides/recipes/scheduler/base.values.yaml \
           -f guides/${GUIDE_NAME}/scheduler/${GUIDE_NAME}.values.yaml \
-          --post-renderer uds-tokenizer \
+          --post-renderer ./guides/${GUIDE_NAME}/scheduler/patches/uds-tokenizer/post-renderer.sh \
           -n ${NAMESPACE} --version ${GAIE_VERSION}
       gke_cluster_name: llm-d-e2e-us-east5
       gke_cluster_zone: us-east5
