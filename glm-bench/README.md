@@ -14,8 +14,16 @@ Headline results and exact configurations: **[COMPARISON.md](COMPARISON.md)**.
 Per-campaign details, raw manifests, bench configs, and result metrics live in the
 `run-*/` folders (each has its own `SUMMARY.md`).
 
-This branch is based on the `wide-ep-lws` guide state that the D2/D3 manifests were
-derived from, so `guides/wide-ep-lws/` in this tree matches what was deployed.
+## Upstream references this work is based on
+
+| Reference | Role here |
+|---|---|
+| [llm-d/llm-d **PR #2122**](https://github.com/llm-d/llm-d/pull/2122) (`guides/wide-ep-lws`, GLM branch, commit `91e4d74`) | Reference recipe for the D2/D3 serving stack (wide-EP LeaderWorkerSets, disagg sidecar, PD router values). **This branch is based on that PR's branch state**, so `guides/wide-ep-lws/` in this tree matches what the manifests were derived from. Deviations (fp8 model, all2all backend, decode batching, offload) are documented in each manifest header and COMPARISON.md. |
+| [llm-d/llm-d `guides/optimized-baseline`](https://github.com/llm-d/llm-d/tree/main/guides/optimized-baseline) | D1's router (EPP v0.9.0 + envoy, queue/kv-utilization/prefix-cache scorers); exact deployed snapshot in `run-20260730-glm-fp8-vllm-baseline/manifests/live-nvfp4-reference/`. |
+| llm-d-router **PRs #2209 / #2218** (llm-d-router `main`) | Basis of the D3 improved EPP config — the `utilization-filter` plugin validated in those PRs; requires the `:main` EPP image + `--allow-experimental-plugins` (plugin absent in v0.9.0). |
+| [llm-d-router **PR #2243**](https://github.com/llm-d/llm-d-router/pull/2243) | Why the D3 prefill utilization filter uses server-reported `running-requests` instead of EPP-tracked `active-requests`: until that fix lands, the EPP releases a prefill profile's request count only at end of stream. Switch the condition to `active-requests` once it ships. |
+| [yangligt2/inference-perf `weka-datagen-parallel`](https://github.com/yangligt2/inference-perf/tree/weka-datagen-parallel) | Benchmark tool fork (parallel weka trace datagen + bounded stage teardown + server-side prompt-token accounting). |
+| [vLLM GLM-5.2 recipe](https://recipes.vllm.ai/zai-org/GLM-5.2) (`kv_offload=simple`) | D1 engine flags (TP8, fp8 KV, MTP-5, SimpleCPUOffloadConnector). |
 
 ---
 

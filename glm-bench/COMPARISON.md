@@ -1,5 +1,13 @@
 # GLM-5.2-FP8 weka trace replay — cross-deployment comparison
 
+Upstream bases: D2/D3 serving stack from llm-d **PR #2122** (`guides/wide-ep-lws`,
+this branch is based on that PR's branch state); D1 router from the llm-d
+`optimized-baseline` guide; D1 engine flags from the vLLM GLM-5.2 recipe
+(`kv_offload=simple`); D3 EPP config from llm-d-router `main` **PRs #2209/#2218**
+(utilization-filter; see also PR #2243 for the running-requests condition); bench
+tool = `yangligt2/inference-perf@weka-datagen-parallel`. Full list in
+[README.md](README.md#upstream-references-this-work-is-based-on).
+
 Environments:
 
 | Env | Stack | GPUs | Status |
