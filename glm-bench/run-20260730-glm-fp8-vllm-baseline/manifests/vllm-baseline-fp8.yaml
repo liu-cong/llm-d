@@ -1,0 +1,163 @@
+# D1: vLLM aggregated baseline for zai-org/GLM-5.2-FP8 on a4-highgpu-8g (8x B200).
+#
+# Basis: recipes.vllm.ai/zai-org/GLM-5.2 (FP8 on 8xB200) + kv_offload=simple
+#   - TP8, --kv-cache-dtype fp8_e4m3, MTP with 5 speculative tokens
+#   - FP8 recipe does NOT use --enable-expert-parallel (NVFP4 recipe does)
+#   - kv_offload=simple => SimpleCPUOffloadConnector; sized to 350GiB/rank x 8
+#     ranks = 2800GiB of the node's ~3816GiB allocatable (safe margin for
+#     process overhead + page cache within the 3700Gi limit)
+#   - weka trace replay requires --tool-call-parser glm47 --reasoning-parser
+#     glm45 --enable-auto-tool-choice
+#   - max-model-len 300000 covers the 256k trace corpus
+#
+# replicas=9: 5 land on accelerator-pool-b200-spot, 4 trigger autoscale of
+# accelerator-pool-b200-dws (a4-highgpu-8g, max 4). Scale down to 5 if DWS
+# capacity is unavailable.
+#
+# Router: reuses the live llm-d optimized-baseline stack in ns glm-bench
+# (EPP v0.9.0 + envoy sidecar, InferencePool optimized-baseline; snapshot in
+# manifests/live-nvfp4-reference/). Gateway URL:
+#   http://optimized-baseline-epp.glm-bench.svc.cluster.local:80
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vllm-baseline
+  namespace: glm-bench
+  labels:
+    app: vllm-baseline
+spec:
+  # 5 = all B200 spot nodes. 9 was attempted to also fill the DWS pool
+  # (accelerator-pool-b200-dws) but scale-up failed: GCE quota exceeded for
+  # on-demand B200 in us-west8 (only PREEMPTIBLE quota is granted).
+  replicas: 5
+  # Recreate: nodes are GPU-saturated (1 pod = 1 full node), a rolling update
+  # deadlocks because new pods can't schedule while old ones hold the GPUs.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: vllm-baseline
+  template:
+    metadata:
+      labels:
+        app: vllm-baseline
+        llm-d.ai/guide: optimized-baseline
+        llm-d.ai/inference-serving: "true"
+    spec:
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchLabels:
+                  app: vllm-baseline
+              topologyKey: kubernetes.io/hostname
+      tolerations:
+        - effect: NoSchedule
+          key: nvidia.com/gpu
+          operator: Exists
+      containers:
+        - name: vllm
+          image: docker.io/vllm/vllm-openai:v0.26.0
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/bash", "-c"]
+          args:
+            - |
+              find /dev/shm -type f -delete
+              exec vllm serve \
+                zai-org/GLM-5.2-FP8 \
+                --port 8000 \
+                --disable-access-log-for-endpoints=/health,/metrics \
+                --tensor-parallel-size 8 \
+                --kv-cache-dtype fp8_e4m3 \
+                --reasoning-parser glm45 \
+                --tool-call-parser glm47 \
+                --enable-auto-tool-choice \
+                --speculative-config '{"method":"mtp","num_speculative_tokens":5}' \
+                --kv-transfer-config '{"kv_connector":"SimpleCPUOffloadConnector","kv_role":"kv_both","kv_connector_extra_config":{"cpu_bytes_to_use_per_rank":375809638400,"lazy_offload":"false"}}' \
+                --max-model-len 300000 \
+                --gpu-memory-utilization 0.90 \
+                --served-model-name glm-5.2-fp8
+          env:
+            - name: HF_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: llm-d-hf-token
+                  key: HF_TOKEN
+            - name: VLLM_LOGGING_LEVEL
+              value: INFO
+            - name: TRITON_LIBCUDA_PATH
+              value: /usr/local/nvidia/lib64
+            - name: VLLM_HTTP_TIMEOUT_KEEP_ALIVE
+              value: "120"
+            - name: VLLM_ENGINE_READY_TIMEOUT_S
+              value: "3000"
+            - name: CUDA_CACHE_PATH
+              value: /var/cache/vllm/cuda
+            - name: VLLM_CACHE_ROOT
+              value: /var/cache/vllm/vllm
+            - name: FLASHINFER_WORKSPACE_BASE
+              value: /var/cache/vllm/flashinfer
+            - name: HF_HUB_CACHE
+              value: /var/cache/huggingface
+          ports:
+            - containerPort: 8000
+          startupProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            periodSeconds: 5
+            timeoutSeconds: 5
+            failureThreshold: 1440
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+          securityContext:
+            capabilities:
+              add: ["IPC_LOCK", "SYS_RAWIO"]
+            runAsGroup: 0
+            runAsUser: 0
+          resources:
+            requests:
+              cpu: "64"
+              memory: 3000Gi
+              ephemeral-storage: 1000Gi
+              nvidia.com/gpu: "8"
+            limits:
+              memory: 3700Gi
+              ephemeral-storage: 1500Gi
+              nvidia.com/gpu: "8"
+          volumeMounts:
+            - name: dshm
+              mountPath: /dev/shm
+            - name: hf-cache
+              mountPath: /var/cache/huggingface
+            - name: jit-cache
+              mountPath: /var/cache/vllm
+      volumes:
+        - name: dshm
+          emptyDir:
+            medium: Memory
+            sizeLimit: 32Gi
+        # hostPath (node local SSD) instead of emptyDir: the 756GB checkpoint
+        # survives pod restarts/redeploys, so a crash mid-benchmark doesn't
+        # cost a full re-download. Same path convention as the llm-d
+        # wide-ep-lws GKE overlay.
+        - name: hf-cache
+          hostPath:
+            path: /mnt/stateful_partition/kube-ephemeral-ssd/shared_disk/vllm-hf-cache/
+            type: DirectoryOrCreate
+        - name: jit-cache
+          hostPath:
+            path: /mnt/stateful_partition/kube-ephemeral-ssd/shared_disk/vllm-jit-cache/
+            type: DirectoryOrCreate

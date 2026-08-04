@@ -1,0 +1,35 @@
+load:
+  type: trace_session_replay
+  stages:
+  - concurrent_sessions: 70
+    num_sessions: 210
+    timeout: 1200
+  num_workers: 16
+  worker_max_concurrency: 256
+  request_timeout: 1800
+api:
+  type: chat
+  streaming: true
+server:
+  type: vllm
+  model_name: glm-5.2-fp8
+  base_url: http://pd-epp.glm-bench.svc.cluster.local:80
+  ignore_eos: true
+tokenizer:
+  pretrained_model_name_or_path: /tokenizer
+data:
+  type: weka_trace_replay
+  weka_trace_replay:
+    hf_dataset_path: semianalysisai/cc-traces-weka-with-subagents-060826-256k
+    num_dataset_entries: 391
+    duplicate_sessions_target: 400
+    inject_random_session_id: true
+    use_static_model: true
+    static_model_name: glm-5.2-fp8
+    default_block_size: 64
+    skip_invalid_files: true
+report:
+  request_lifecycle:
+    summary: true
+    per_stage: true
+    per_request: true

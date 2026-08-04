@@ -1,0 +1,9 @@
+# D2 common objects (namespace glm-bench is shared with the bench harness).
+# ServiceAccount `glm` is referenced by the wide-ep-lws LWS pod templates.
+# The HF token secret `llm-d-hf-token` already exists in the namespace
+# (created for D1; contains HF_TOKEN).
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: glm
+  namespace: glm-bench

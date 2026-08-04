@@ -1,0 +1,47 @@
+# D3 (improved router) saturation sweep: c16 -> c32 -> c48 -> c64, 7 min per stage.
+# Sessions per stage = 3x concurrency (total 480 > 391 corpus, so sessions are
+# duplicated with random session ids injected to keep prefix caching honest).
+load:
+  type: trace_session_replay
+  stages:
+    - concurrent_sessions: 16
+      num_sessions: 48
+      timeout: 420
+    - concurrent_sessions: 32
+      num_sessions: 96
+      timeout: 420
+    - concurrent_sessions: 48
+      num_sessions: 144
+      timeout: 420
+    - concurrent_sessions: 64
+      num_sessions: 192
+      timeout: 420
+  num_workers: 8
+  worker_max_concurrency: 128
+  request_timeout: 1800
+api:
+  type: chat
+  streaming: true
+server:
+  type: vllm
+  model_name: glm-5.2-fp8
+  base_url: http://pd-epp.glm-bench.svc.cluster.local:80
+  ignore_eos: true
+tokenizer:
+  pretrained_model_name_or_path: /tokenizer
+data:
+  type: weka_trace_replay
+  weka_trace_replay:
+    hf_dataset_path: "semianalysisai/cc-traces-weka-with-subagents-060826-256k"
+    num_dataset_entries: 391
+    duplicate_sessions_target: 500
+    inject_random_session_id: true
+    use_static_model: true
+    static_model_name: "glm-5.2-fp8"
+    default_block_size: 64
+    skip_invalid_files: true
+report:
+  request_lifecycle:
+    summary: true
+    per_stage: true
+    per_request: true

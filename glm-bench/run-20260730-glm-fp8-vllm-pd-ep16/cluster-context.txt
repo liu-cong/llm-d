@@ -1,0 +1,18 @@
+GCP project : conliu-gke-dev
+Cluster     : us-west8 (zonal, us-west8-c)
+Context     : gke_conliu-gke-dev_us-west8-c_us-west8
+Credentials : gcloud container clusters get-credentials us-west8 --zone us-west8-c --project conliu-gke-dev
+GPU pools   : accelerator-pool-b200-spot (a4-highgpu-8g, spot, 5 nodes, 8x B200/node)
+              accelerator-pool-b200-dws  (a4-highgpu-8g, autoscale 0-4, on-demand/DWS)
+Bench pool  : bench-client-pool (n2-standard-16, label role=bench-client)
+Namespace   : glm-bench
+Bench image : us-west2-docker.pkg.dev/conliu-gke-dev/glm-bench/inference-perf:weka-glm-bench-20260730a
+Model       : zai-org/GLM-5.2-FP8, served-model-name glm-5.2-fp8
+
+UPDATE 2026-07-31 ~11:20 PT (cluster fixed for RDMA):
+GPU pool    : a4-rdma-spot (a4-highgpu-8g, spot, 5 nodes, GKE multi-networking)
+              replaces accelerator-pool-b200-spot (now 0 nodes)
+RDMA        : Network CRs rdma-0..7 + gvnic-1; pods get 8x RoCE NICs via
+              networking.gke.io/interfaces annotation (eth2-eth9)
+D2/D3 layout: prefill EP16 (2 nodes) + decode EP16 (2 nodes) = 32 GPUs, 1 node idle
+Non-RDMA results DISCARDED per user instruction.

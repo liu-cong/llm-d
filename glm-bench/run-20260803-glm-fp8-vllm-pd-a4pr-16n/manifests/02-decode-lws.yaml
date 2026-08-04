@@ -1,0 +1,256 @@
+# D2 decode: vLLM wide-EP LeaderWorkerSet, EP16 (2 nodes x 8 B200 per group),
+# RDMA-enabled, with the llm-d disagg routing sidecar (8000-8007 -> vllm 8200+).
+#
+# See 01-prefill-lws.yaml header for full history/rationale. Same RDMA bits
+# (interfaces annotation, privileged, NVSHMEM ibgda, DeepEP HCA mapping).
+# all2all backend: allgather_reducescatter (NCCL over the RoCE NICs).
+# deepep_low_latency was the first choice but it strictly requires NVSHMEM
+# IBGDA, which fails on these nodes ("init failed for transport: IBGDA" --
+# GKE default driver lacks the regkeys). NCCL's built-in IB verbs path uses
+# the mlx5 RoCE devices directly; decode all2all batches are small (<=512
+# tokens/rank) so this is not the bottleneck. (The PR's
+# flashinfer_nvlink_one_sided doesn't support fp8_e4m3 and is intra-node only.)
+#
+# Deliberate deviation from the PR kept from earlier: PR sets MAX_TOKENS=32 for
+# both --max-num-batched-tokens and --max-num-seqs per rank; with MTP-5 each
+# running seq consumes 6 token slots per step, so a 32-token budget advances
+# only ~5 seqs per step per rank. We use max-num-seqs 64 / max-num-batched 512.
+apiVersion: leaderworkerset.x-k8s.io/v1
+kind: LeaderWorkerSet
+metadata:
+  name: wide-ep-llm-d-decode
+  namespace: glm-bench
+  labels:
+    llm-d.ai/inference-serving: "true"
+    llm-d.ai/guide: "wide-ep-lws"
+    llm-d.ai/accelerator-variant: "gpu"
+    llm-d.ai/accelerator-vendor: "nvidia"
+    llm-d.ai/role: decode
+spec:
+  replicas: 1
+  leaderWorkerTemplate:
+    size: 2
+    workerTemplate:
+      metadata:
+        labels:
+          llm-d.ai/inference-serving: "true"
+          llm-d.ai/guide: "wide-ep-lws"
+          llm-d.ai/accelerator-variant: "gpu"
+          llm-d.ai/accelerator-vendor: "nvidia"
+          llm-d.ai/role: decode
+        annotations:
+          networking.gke.io/default-interface: 'eth0'
+          networking.gke.io/interfaces: |
+            [
+              {"interfaceName":"eth0","network":"default"},
+              {"interfaceName":"eth2","network":"rdma-0"},
+              {"interfaceName":"eth3","network":"rdma-1"},
+              {"interfaceName":"eth4","network":"rdma-2"},
+              {"interfaceName":"eth5","network":"rdma-3"},
+              {"interfaceName":"eth6","network":"rdma-4"},
+              {"interfaceName":"eth7","network":"rdma-5"},
+              {"interfaceName":"eth8","network":"rdma-6"},
+              {"interfaceName":"eth9","network":"rdma-7"}
+            ]
+      spec:
+        serviceAccountName: glm
+        tolerations:
+          - effect: NoSchedule
+            key: nvidia.com/gpu
+            operator: Exists
+        initContainers:
+          - name: routing-proxy
+            args:
+              - --port=8000
+              - --vllm-port=8200
+              - --data-parallel-size=8
+              - --kv-connector=nixlv2
+              - --zap-log-level=1
+              - --secure-proxy=false
+              - --enable-prefiller-sampling
+            image: ghcr.io/llm-d/llm-d-router-disagg-sidecar:v0.9.0
+            imagePullPolicy: IfNotPresent
+            ports:
+              - { containerPort: 8000, name: rank0, protocol: TCP }
+              - { containerPort: 8001, name: rank1, protocol: TCP }
+              - { containerPort: 8002, name: rank2, protocol: TCP }
+              - { containerPort: 8003, name: rank3, protocol: TCP }
+              - { containerPort: 8004, name: rank4, protocol: TCP }
+              - { containerPort: 8005, name: rank5, protocol: TCP }
+              - { containerPort: 8006, name: rank6, protocol: TCP }
+              - { containerPort: 8007, name: rank7, protocol: TCP }
+            restartPolicy: Always
+            securityContext:
+              allowPrivilegeEscalation: false
+              runAsNonRoot: true
+        volumes:
+          - name: dshm
+            emptyDir:
+              medium: Memory
+              sizeLimit: 16Gi
+          - name: hf-cache
+            hostPath:
+              path: /mnt/stateful_partition/kube-ephemeral-ssd/shared_disk/vllm-hf-cache/
+              type: DirectoryOrCreate
+          - name: jit-cache
+            hostPath:
+              path: /mnt/stateful_partition/kube-ephemeral-ssd/shared_disk/vllm-jit-cache/
+              type: DirectoryOrCreate
+        containers:
+          - name: vllm
+            image: docker.io/vllm/vllm-openai:v0.26.0
+            securityContext:
+              privileged: true
+              capabilities:
+                add:
+                  - IPC_LOCK
+                  - SYS_RAWIO
+              runAsGroup: 0
+              runAsUser: 0
+            imagePullPolicy: IfNotPresent
+            command:
+              - /bin/bash
+              - -c
+            args:
+              - |-
+                # Clear /dev/shm on start to prevent running out of space when
+                # crashes occur (llm-d issue #352)
+                find /dev/shm -type f -delete
+                START_RANK=$(( ${LWS_WORKER_INDEX:-0} * DP_SIZE_LOCAL ))
+                export UCX_IB_ROCE_REACHABILITY_MODE=all
+
+                exec vllm serve \
+                  zai-org/GLM-5.2-FP8 \
+                  --port 8200 \
+                  --served-model-name glm-5.2-fp8 \
+                  --disable-access-log-for-endpoints=/health,/metrics \
+                  --data-parallel-multi-port-external-lb \
+                  --data-parallel-supervisor-port=8208 \
+                  --enable-expert-parallel \
+                  --tensor-parallel-size $TP_SIZE \
+                  --max-num-batched-tokens ${MAX_BATCHED_TOKENS} \
+                  --max-num-seqs ${MAX_NUM_SEQS} \
+                  --data-parallel-size $((LWS_GROUP_SIZE * DP_SIZE_LOCAL)) \
+                  --data-parallel-size-local $DP_SIZE_LOCAL \
+                  --data-parallel-address ${LWS_LEADER_ADDRESS} \
+                  --data-parallel-rpc-port 5555 \
+                  --data-parallel-start-rank $START_RANK \
+                  --kv-transfer-config '{"kv_connector":"MultiConnector","kv_role":"kv_both","kv_connector_extra_config":{"connectors":[{"kv_connector":"NixlConnector","kv_role":"kv_both","kv_load_failure_policy":"fail"},{"kv_connector":"SimpleCPUOffloadConnector","kv_role":"kv_both","kv_connector_extra_config":{"cpu_bytes_to_use_per_rank":322122547200,"lazy_offload":"false"}}]}}' \
+                  --all2all-backend allgather_reducescatter \
+                  --kv-cache-dtype fp8 \
+                  --reasoning-parser glm45 \
+                  --tool-call-parser glm47 \
+                  --enable-auto-tool-choice \
+                  --speculative-config '{"method":"mtp","num_speculative_tokens":5}' \
+                  --max-model-len 300000
+            env:
+              - name: HF_TOKEN
+                valueFrom:
+                  secretKeyRef:
+                    name: llm-d-hf-token
+                    key: HF_TOKEN
+              - name: VLLM_ENGINE_READY_TIMEOUT_S
+                value: "3000"
+              - name: VLLM_MEMORY_PROFILER_ESTIMATE_CUDAGRAPHS
+                value: "1"
+              - name: VLLM_RANDOMIZE_DP_DUMMY_INPUTS
+                value: "1"
+              - name: MAX_BATCHED_TOKENS
+                value: "512"
+              - name: MAX_NUM_SEQS
+                value: "64"
+              - name: DP_SIZE_LOCAL
+                value: "8"
+              - name: TP_SIZE
+                value: "1"
+              - name: TRITON_LIBCUDA_PATH
+                value: /usr/local/nvidia/lib64
+              - name: VLLM_SKIP_P2P_CHECK
+                value: "1"
+              - name: NVIDIA_GDRCOPY
+                value: enabled
+              - name: NVSHMEM_REMOTE_TRANSPORT
+                value: ibrc
+              - name: NVSHMEM_IB_ENABLE_IBGDA
+                value: "false"
+              - name: NVSHMEM_DISABLED_GDRCOPY
+                value: "true"
+              - name: NVSHMEM_BOOTSTRAP_UID_SOCK_IFNAME
+                value: eth0
+              - name: DEEP_EP_DEVICE_TO_HCA_MAPPING
+                value: "0:mlx5_0:1,1:mlx5_1:1,2:mlx5_2:1,3:mlx5_3:1,4:mlx5_4:1,5:mlx5_5:1,6:mlx5_6:1,7:mlx5_7:1"
+              - name: NCCL_TUNER_PLUGIN
+                value: "none"
+              - name: NCCL_NET_PLUGIN
+                value: ""
+              - name: GLOO_SOCKET_IFNAME
+                value: eth0
+              - name: NCCL_SOCKET_IFNAME
+                value: eth0
+              - name: VLLM_LOGGING_LEVEL
+                value: INFO
+              - name: VLLM_HTTP_TIMEOUT_KEEP_ALIVE
+                value: "120"
+              - name: VLLM_NIXL_SIDE_CHANNEL_HOST
+                valueFrom:
+                  fieldRef:
+                    fieldPath: status.podIP
+              - name: CUDA_CACHE_PATH
+                value: /var/cache/vllm/cuda
+              - name: CCACHE_DIR
+                value: /var/cache/vllm/ccache
+              - name: VLLM_CACHE_ROOT
+                value: /var/cache/vllm/vllm
+              - name: FLASHINFER_WORKSPACE_BASE
+                value: /var/cache/vllm/flashinfer
+              - name: HF_HUB_CACHE
+                value: /var/cache/huggingface
+            ports:
+              - { containerPort: 8200, name: vllm-rank0, protocol: TCP }
+              - { containerPort: 8201, name: vllm-rank1, protocol: TCP }
+              - { containerPort: 8202, name: vllm-rank2, protocol: TCP }
+              - { containerPort: 8203, name: vllm-rank3, protocol: TCP }
+              - { containerPort: 8204, name: vllm-rank4, protocol: TCP }
+              - { containerPort: 8205, name: vllm-rank5, protocol: TCP }
+              - { containerPort: 8206, name: vllm-rank6, protocol: TCP }
+              - { containerPort: 8207, name: vllm-rank7, protocol: TCP }
+              - { containerPort: 8208, name: supervisor, protocol: TCP }
+            startupProbe:
+              httpGet:
+                path: /health
+                port: supervisor
+              initialDelaySeconds: 0
+              periodSeconds: 5
+              timeoutSeconds: 5
+              failureThreshold: 2700
+            livenessProbe:
+              httpGet:
+                path: /health
+                port: supervisor
+              periodSeconds: 30
+              timeoutSeconds: 5
+              failureThreshold: 3
+            readinessProbe:
+              httpGet:
+                path: /readyz
+                port: supervisor
+              periodSeconds: 10
+              timeoutSeconds: 5
+              failureThreshold: 3
+            resources:
+              limits:
+                memory: 3700Gi
+                ephemeral-storage: 500Gi
+                nvidia.com/gpu: "8"
+              requests:
+                cpu: "64"
+                memory: 3000Gi
+                ephemeral-storage: 300Gi
+                nvidia.com/gpu: "8"
+            volumeMounts:
+              - name: dshm
+                mountPath: /dev/shm
+              - name: hf-cache
+                mountPath: /var/cache/huggingface
+              - name: jit-cache
+                mountPath: /var/cache/vllm

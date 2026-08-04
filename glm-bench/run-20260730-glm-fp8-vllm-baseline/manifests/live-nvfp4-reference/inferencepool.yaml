@@ -1,0 +1,30 @@
+apiVersion: inference.networking.k8s.io/v1
+kind: InferencePool
+metadata:
+  annotations:
+    meta.helm.sh/release-name: optimized-baseline
+    meta.helm.sh/release-namespace: glm-bench
+  creationTimestamp: "2026-07-30T17:24:46Z"
+  generation: 1
+  labels:
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: optimized-baseline-epp
+    app.kubernetes.io/version: v0.9.0
+  name: optimized-baseline
+  namespace: glm-bench
+  resourceVersion: "1785432286122255003"
+  uid: aaf9cd89-88cf-48c8-9614-2151ed3c9ab9
+spec:
+  appProtocol: http
+  endpointPickerRef:
+    failureMode: FailOpen
+    group: ""
+    kind: Service
+    name: optimized-baseline-epp
+    port:
+      number: 9002
+  selector:
+    matchLabels:
+      llm-d.ai/guide: optimized-baseline
+  targetPorts:
+  - number: 8000

@@ -1,0 +1,91 @@
+# D3: improved llm-d EPP config for the P/D-disaggregated wide-EP deployment.
+# Overwrites ConfigMap pd-epp (D2 router) and restarts the pd-epp deployment;
+# the serving stack (prefill/decode LWS) is unchanged from D2.
+#
+# Source: instruction.md "D3" recommended EPP configmap, adapted:
+#   - namespace prediction -> glm-bench, name -> pd-epp
+#   - non-vLLM reference data layer (metrics port 7080, defaultEngine sglang)
+#     -> default vLLM data layer (metrics scraped from the target port)
+#   - placeholders filled from measurements on THIS deployment (see README.md):
+#       __PEAK_PREFILL_TPUT__    prompt_tokens/TTFT median, cache-miss prefills,
+#                                low concurrency, per prefill endpoint (DP rank)
+#       __LRU_BLOCKS__           per-rank KV tokens (GPU, from vllm startup log,
+#                                scaled by (1 + cpu_offload_ratio)) / 64
+#       __CTX_WINDOW__           served max-model-len (300000)
+#       __PREFILL_MAX_WAITING__ / __PREFILL_MAX_RUNNING__ /
+#       __DECODE_MAX_WAITING__ / __DECODE_MAX_ACTIVE__
+#                                utilization filter caps (see README.md)
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pd-epp
+  namespace: glm-bench
+  labels:
+    app.kubernetes.io/name: pd-epp
+data:
+  wide-ep-lws-config.yaml: |
+    apiVersion: llm-d.ai/v1alpha1
+    kind: EndpointPickerConfig
+    plugins:
+    # ---- P/D disaggregation machinery ----
+    - type: disagg-headers-handler
+    - type: always-disagg-pd-decider
+    - type: disagg-profile-handler
+      parameters:
+        deciderPluginName: always-disagg-pd-decider
+    - type: prefill-filter
+    - type: decode-filter
+    # ---- prefix-cache tracking (drives affinity on the prefill profile) ----
+    - type: approx-prefix-cache-producer
+      parameters:
+        autoTune: false
+        blockSizeTokens: 64                       # match the engine page size
+        lruCapacityPerServer: __LRU_BLOCKS__
+        maxPrefixTokensToMatch: __CTX_WINDOW__
+    - type: inflight-load-producer
+    # ---- utilization filters: drop pods over limit BEFORE they shed ----
+    # OR semantics: a pod is dropped when ANY condition's metric exceeds its
+    # maxValue. fallbackOnEmpty keeps this fail-open.
+    - name: prefill-utilization-filter
+      type: utilization-filter
+      parameters:
+        conditions:
+        - metric: waiting-queue
+          maxValue: __PREFILL_MAX_WAITING__
+        # running-requests (server-reported) rather than active-requests
+        # (EPP-tracked): the EPP releases a prefill profile's request count
+        # only at end of stream today, so active-requests would count requests
+        # already decoding elsewhere.
+        - metric: running-requests
+          maxValue: __PREFILL_MAX_RUNNING__
+        fallbackOnEmpty: true
+    - name: decode-utilization-filter
+      type: utilization-filter
+      parameters:
+        conditions:
+        - metric: waiting-queue
+          maxValue: __DECODE_MAX_WAITING__
+        - metric: active-requests
+          maxValue: __DECODE_MAX_ACTIVE__
+        fallbackOnEmpty: true
+    # ---- scorers ----
+    - type: prefix-cache-affinity-filter
+      parameters:
+        peakPrefillThroughput: __PEAK_PREFILL_TPUT__
+    - type: token-load-scorer
+    - type: active-request-scorer
+    # ---- data layer (vLLM: metrics scraped from the pool target ports) ----
+    - type: metrics-data-source
+    - type: core-metrics-extractor
+    schedulingProfiles:
+    - name: prefill
+      plugins:
+      - pluginRef: prefill-filter
+      - pluginRef: prefill-utilization-filter
+      - pluginRef: prefix-cache-affinity-filter
+      - pluginRef: token-load-scorer
+    - name: decode
+      plugins:
+      - pluginRef: decode-filter
+      - pluginRef: decode-utilization-filter
+      - pluginRef: active-request-scorer

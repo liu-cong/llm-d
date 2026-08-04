@@ -1,0 +1,107 @@
+# Benchmark pod template (in-cluster direct mode) — instantiated per run by
+# scripts/run_bench.sh via sed. Variables: ${RUN_NAME}, ${IMAGE}
+#
+# There is no proxy sidecar and no auth token:
+# the bench container talks straight to the in-cluster gateway/service URL
+# set in the config's server.base_url.
+#
+# Layout:
+#   initContainer tokenizer-fetch : downloads GLM-5.2 tokenizer from HF and
+#     patches tokenizer_class for transformers 4.x into /tokenizer emptyDir.
+#   container bench               : inference-perf with /config/config.yaml,
+#     writes reports under /workspace/results, then sleeps so results can be
+#     copied out with `kubectl cp` before the pod is deleted.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: ${RUN_NAME}
+  namespace: glm-bench
+  labels:
+    app: glm-bench
+    run: ${RUN_NAME}
+spec:
+  restartPolicy: Never
+  nodeSelector:
+    role: bench-client
+  initContainers:
+    - name: tokenizer-fetch
+      image: ${IMAGE}
+      command: ["python", "-c"]
+      args:
+        - |
+          import json, urllib.request
+          base = "https://huggingface.co/zai-org/GLM-5.2"
+          urllib.request.urlretrieve(f"{base}/resolve/main/tokenizer.json", "/tokenizer/tokenizer.json")
+          cfg = {
+            "tokenizer_class": "PreTrainedTokenizerFast",
+            "clean_up_tokenization_spaces": False,
+            "eos_token": "<|endoftext|>",
+            "pad_token": "<|endoftext|>",
+            "model_max_length": 1048576,
+            "padding_side": "left",
+          }
+          with open("/tokenizer/tokenizer_config.json", "w") as f:
+              json.dump(cfg, f, indent=1)
+          print("tokenizer ready")
+      volumeMounts:
+        - name: tokenizer
+          mountPath: /tokenizer
+  containers:
+    - name: bench
+      image: ${IMAGE}
+      workingDir: /workspace/results
+      command: ["sh", "-c"]
+      args:
+        - |
+          set -x
+          python /workspace/inference_perf/main.py -c /config/config.yaml --log-level INFO &
+          BENCH_PID=$!
+          # Watchdog: inference-perf occasionally hangs at exit AFTER all report
+          # files are written. Treat the run as complete when the process exits
+          # OR when the report directory exists and has been stable for >120s.
+          while kill -0 $BENCH_PID 2>/dev/null; do
+            if ls /workspace/results/reports-*/summary_lifecycle_metrics.json >/dev/null 2>&1; then
+              recent=$(find /workspace/results/reports-* -type f -newermt '-120 seconds' 2>/dev/null | wc -l)
+              if [ "$recent" -eq 0 ]; then
+                echo "watchdog: report stable for 120s with process still alive; proceeding"
+                break
+              fi
+            fi
+            sleep 20
+          done
+          if kill -0 $BENCH_PID 2>/dev/null; then
+            echo "exit_code=0 (watchdog: report complete, process hung at exit)" > /workspace/results/BENCH_EXIT
+          else
+            wait $BENCH_PID; echo "exit_code=$?" > /workspace/results/BENCH_EXIT
+          fi
+          touch /workspace/results/DONE
+          # keep pod alive for kubectl cp
+          sleep 43200
+      env:
+        - name: HF_HOME
+          value: /workspace/results/hf-cache
+      resources:
+        requests:
+          cpu: "12"
+          memory: 32Gi
+        limits:
+          memory: 56Gi
+      volumeMounts:
+        - name: config
+          mountPath: /config
+        - name: tokenizer
+          mountPath: /tokenizer
+        - name: results
+          mountPath: /workspace/results
+  volumes:
+    - name: config
+      configMap:
+        name: ${RUN_NAME}-config
+        items:
+          - key: config.yaml
+            path: config.yaml
+    - name: tokenizer
+      emptyDir: {}
+    - name: results
+      emptyDir:
+        sizeLimit: 30Gi

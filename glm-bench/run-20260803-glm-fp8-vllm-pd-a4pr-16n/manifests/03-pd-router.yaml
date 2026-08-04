@@ -1,0 +1,258 @@
+# D2 PD router: EPP (llm-d-router endpoint picker v0.9.0) + envoy sidecar for
+# the wide-ep-lws P/D-disaggregated deployment.
+#
+# Cloned from the live helm-installed `optimized-baseline` stack in ns
+# glm-bench (snapshot: ../../run-20260730-glm-fp8-vllm-baseline/manifests/
+# live-nvfp4-reference/), with:
+#   - new names (pd-epp / InferencePool wide-ep)
+#   - plugins config = guides/wide-ep-lws/router/wide-ep-lws.values.yaml from
+#     llm-d PR #2122 (standard PD disagg profile: always-disagg decider,
+#     prefill/decode filters, gpu+cpu approx prefix-cache scorers)
+#   - InferencePool selects llm-d.ai/guide=wide-ep-lws pods on target ports
+#     8000-8007 (one endpoint per DP rank; decode ports are served by the
+#     routing-proxy sidecar which forwards to vllm 8200+)
+# Reused from the live stack: the `envoy` ConfigMap (ext_proc -> localhost:9002,
+# so it is pod-local and name-agnostic) and the `optimized-baseline-epp`
+# ServiceAccount/RBAC.
+#
+# Gateway URL for the bench client:
+#   http://pd-epp.glm-bench.svc.cluster.local:80
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pd-epp
+  namespace: glm-bench
+  labels:
+    app.kubernetes.io/name: pd-epp
+data:
+  wide-ep-lws-config.yaml: |
+    apiVersion: llm-d.ai/v1alpha1
+    kind: EndpointPickerConfig
+    plugins:
+    - type: disagg-headers-handler
+    - type: always-disagg-pd-decider
+    - type: disagg-profile-handler
+      parameters:
+        deciderPluginName: always-disagg-pd-decider
+    - type: prefill-filter
+    - type: decode-filter
+    - type: approx-prefix-cache-producer
+      name: gpu-prefix-cache-producer
+    - type: approx-prefix-cache-producer
+      name: cpu-prefix-cache-producer
+      parameters:
+        autoTune: false
+        lruCapacityPerServer: 200000
+    - type: prefix-cache-scorer
+      name: gpu-prefix-cache-scorer
+      parameters:
+        prefixMatchInfoProducerName: gpu-prefix-cache-producer
+    - type: prefix-cache-scorer
+      name: cpu-prefix-cache-scorer
+      parameters:
+        prefixMatchInfoProducerName: cpu-prefix-cache-producer
+    - type: queue-scorer
+    - type: active-request-scorer
+    schedulingProfiles:
+    - name: prefill
+      plugins:
+      - pluginRef: prefill-filter
+      - pluginRef: gpu-prefix-cache-scorer
+        weight: 5
+      - pluginRef: cpu-prefix-cache-scorer
+        weight: 2
+      - pluginRef: active-request-scorer
+        weight: 1
+    - name: decode
+      plugins:
+      - pluginRef: decode-filter
+      - pluginRef: active-request-scorer
+---
+apiVersion: inference.networking.k8s.io/v1
+kind: InferencePool
+metadata:
+  name: wide-ep
+  namespace: glm-bench
+spec:
+  appProtocol: http
+  endpointPickerRef:
+    failureMode: FailOpen
+    group: ""
+    kind: Service
+    name: pd-epp
+    port:
+      number: 9002
+  selector:
+    matchLabels:
+      llm-d.ai/guide: wide-ep-lws
+  targetPorts:
+    - number: 8000
+    - number: 8001
+    - number: 8002
+    - number: 8003
+    - number: 8004
+    - number: 8005
+    - number: 8006
+    - number: 8007
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: pd-epp
+  namespace: glm-bench
+  labels:
+    app.kubernetes.io/name: pd-epp
+spec:
+  selector:
+    llm-d-router-gateway: pd-epp
+  ports:
+    - name: grpc-ext-proc
+      port: 9002
+      targetPort: 9002
+    - name: http-metrics
+      port: 9090
+      targetPort: 9090
+    - name: http
+      port: 80
+      targetPort: 8081
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pd-epp
+  namespace: glm-bench
+  labels:
+    app.kubernetes.io/name: pd-epp
+    llm-d.ai/igw-mode: llm-d-router-gateway
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      llm-d-router-gateway: pd-epp
+  template:
+    metadata:
+      labels:
+        llm-d-router-gateway: pd-epp
+        llm-d.ai/igw-mode: llm-d-router-gateway
+    spec:
+      serviceAccountName: optimized-baseline-epp
+      terminationGracePeriodSeconds: 130
+      containers:
+        - name: envoy-proxy
+          command: ["envoy"]
+          args:
+            - --service-node
+            - envoy-sidecar
+            - --log-level
+            - warn
+            - --concurrency
+            - "8"
+            - --drain-strategy
+            - immediate
+            - --drain-time-s
+            - "60"
+            - -c
+            - /etc/envoy/envoy.yaml
+          env:
+            - name: NS_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+          image: docker.io/envoyproxy/envoy:distroless-v1.33.2
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8081
+              name: http-8081
+            - containerPort: 19001
+              name: metrics-19001
+          readinessProbe:
+            failureThreshold: 1
+            httpGet:
+              path: /ready
+              port: 19001
+            periodSeconds: 5
+            timeoutSeconds: 1
+          resources:
+            requests:
+              cpu: "4"
+              memory: 8Gi
+            limits:
+              memory: 16Gi
+          volumeMounts:
+            - mountPath: /etc/envoy
+              name: config
+              readOnly: true
+        - name: epp
+          image: ghcr.io/llm-d/llm-d-router-endpoint-picker:v0.9.0
+          imagePullPolicy: IfNotPresent
+          args:
+            - --pool-name
+            - wide-ep
+            - --pool-namespace
+            - glm-bench
+            - --pool-group
+            - inference.networking.k8s.io
+            - --zap-encoder
+            - json
+            - --config-file
+            - /config/wide-ep-lws-config.yaml
+            - --grpc-health-port
+            - "9003"
+            - --v=2
+            - --tracing=false
+          env:
+            - name: NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+          ports:
+            - containerPort: 9002
+              name: grpc
+            - containerPort: 9003
+              name: grpc-health
+            - containerPort: 9090
+              name: metrics
+          livenessProbe:
+            failureThreshold: 3
+            grpc:
+              port: 9003
+              service: inference-extension
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 1
+          readinessProbe:
+            failureThreshold: 3
+            grpc:
+              port: 9003
+              service: inference-extension
+            periodSeconds: 2
+            timeoutSeconds: 1
+          resources:
+            requests:
+              cpu: "4"
+              memory: 8Gi
+            limits:
+              memory: 16Gi
+          volumeMounts:
+            - mountPath: /config
+              name: plugins-config-volume
+      volumes:
+        - name: config
+          configMap:
+            name: envoy
+            items:
+              - key: envoy.yaml
+                path: envoy.yaml
+        - name: plugins-config-volume
+          configMap:
+            name: pd-epp
