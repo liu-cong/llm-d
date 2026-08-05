@@ -15,6 +15,7 @@ Environments:
 | **D1** | vLLM v0.26.0 aggregated: TP8 ×5, fp8 KV, MTP-5, SimpleCPUOffload 2.8TiB/node, llm-d optimized-baseline router | 40 | ✅ 2026-07-31 |
 | **D2** | vLLM PD + wide-EP: EP8/DEP16 (40 GPU) and **full DEP16 groups (112–128 GPU)** | 40 / 112 / 128 | ✅ complete |
 | **D3** | D2 stack + improved EPP config (recalibrated per shape) | 40 / 112 / 128 | ✅ complete |
+| **D4** | vLLM AGGREGATE wide-EP (no PD): DEP16 ×2, one pool for prefill+decode, offload-only connector. v1 = D4-spec config (MTP-3, chunked prefill 4096, default-profile router); **v2 = "D1 + wide EP"** (MTP-5, 350 GiB/rank offload, default batching, D1's token-load/prefix-affinity router with peak recalibrated 16800→4741/rank) | 32 | ✅ 2026-08-04/05 |
 
 ## Exact configurations
 
@@ -44,7 +45,7 @@ session-id injection); streaming chat, `ignore_eos`; finals = one 20-min stage
 | EP all2all | n/a | `allgather_reducescatter` (NCCL over 8× RoCE NICs; DeepEP blocked: NVSHMEM IBGDA won't init on GKE default drivers; flashinfer NVLink backend lacks fp8_e4m3) | same |
 | KV offload | `SimpleCPUOffloadConnector`, **350 GiB/rank × 8 = 2.8 TiB/node** | `MultiConnector` = NIXL (UCX/RoCE) + SimpleCPUOffload **300 GiB/rank = 2.4 TiB/node** | same |
 | GPU KV per rank | 1,323,186 tok/replica | prefill 475k · decode 1.89M tok | prefill/decode **1,196,224 tok** |
-| Router (D2 / baseline) | llm-d **optimized-baseline** EPP v0.9.0 + envoy (queue-, kv-cache-utilization-, prefix-cache-scorer) | wide-ep-lws PD config on EPP v0.9.0 (always-disagg, prefill/decode filters, gpu+cpu prefix scorers), disagg sidecar v0.9.0 on decode | same |
+| Router (D2 / baseline) | llm-d **optimized-baseline** EPP v0.9.0 + envoy — ACTIVE config: **prefix-cache-affinity-filter (peakPrefillThroughput 16800) + token-load-scorer** with approx-prefix-cache + inflight-load producers (all EPP-side). (Corrected 2026-08-05: earlier doc versions cited the inactive queue/kv-util default profile.) | wide-ep-lws PD config on EPP v0.9.0 (always-disagg, prefill/decode filters, gpu+cpu prefix scorers), disagg sidecar v0.9.0 on decode | same |
 | Router (D3) | n/a | EPP `:main`; peak **7,400** tok/s/rank, LRU **111,000** blocks, ctx 300k, prefill wait 0 / running 4, decode wait 0 / active 56 | EPP `:main` + `--allow-experimental-plugins`; recalibrated peak **4,741** tok/s/rank, LRU **122,000** blocks, same caps (variant with prefill running cap 8: regression, rejected) |
 | Raw manifests | `run-20260730-glm-fp8-vllm-baseline/manifests/` | `run-20260730-glm-fp8-vllm-pd-ep16*/manifests/` | `run-20260803-glm-fp8-vllm-pd-a4pr-16n/manifests/` |
 
@@ -61,6 +62,11 @@ session-id injection); streaming chat, `ignore_eos`; finals = one 20-min stage
 | D2 · c115 (14n · 112, 5P2D DEP16) | 156,726 | 1,399 | 1,759 | 7.11 / 28.1 / 49.9 | 11.6 | 10.3 / 41.0 / 115.0 |
 | D2 · c160 (16n · 128, 6P2D DEP16) | 185,061 | 1,446 | 1,859 | 7.32 / 31.6 / 62.1 | 11.6 | 10.1 / 43.2 / 114.7 |
 | D3 · c115 (16n · 128, 6P2D DEP16) | **198,381** | **1,550** | 2,055 | 7.06 / 32.4 / 52.9 | 11.0 | 10.8 / 40.5 / 123.9 |
+| D4-v1 · c35 (4n · 32, agg DEP16×2) | 38,708 | 1,210 | 547 | 6.58 / 36.7 / 76.7 | 11.3 | 9.5 / 48.2 / 141.1 |
+| D4-v1 · c58 (4n · 32, agg DEP16×2) | 41,861 | 1,308 | 530 | 8.02 / 42.1 / 60.6 | 12.5 | 13.7 / 54.6 / 145.3 |
+| D4-v2 · c35 ("D1+wideEP", 4n · 32) | 46,287 | 1,446 | 589 | 8.59 / 41.6 / 81.7 | 14.8 | 14.4 / 58.2 / 167.5 |
+| D4-v2 · c58 ("D1+wideEP", 4n · 32) | 44,085 | 1,378 | 491 | 8.91 / **26.4 / 35.6** | 16.3 | 11.2 / 48.4 / 134.1 |
+| D4-v2 · c160 ("D1+wideEP", 4n · 32) | 54,565 | **1,705** | 620 | 9.04 / 40.2 / 56.6 | 13.8 | 12.0 / 57.6 / 145.0 |
 
 Note: **D1 has only been benchmarked at 40 GPUs** — cross-scale comparisons of D1 vs the
 112/128-GPU PD rows rely on per-GPU normalization. All rows above are warm-router runs
@@ -78,7 +84,18 @@ with 0 request failures.
 3. **6P2D ≥ 5P2D at c115+**: +18–27% total throughput for +14% GPUs (slightly
    super-linear per GPU at the right operating point); below ~c100 the extra prefill
    capacity idles.
-4. Caveats: EPP restarts cold the in-memory prefix index (first run after any config
+4. **D2 vs D4 (PD vs aggregate at the same wide-EP width): no crossover in aggregate's
+   favor at matched tails with the v1 config, but D4-v2 (D1's token-load router +
+   D1-aligned engine) reaches per-GPU parity-or-better with PD** (1,446@c35 ≥ D2's
+   1,280; 1,378@c58 ≈ D2's 1,379) and fixes the tail problem at c58 (TTFT p95/p99
+   26.4/35.6 s, better than D2's 32.7/52.3).
+5. **KV-capacity hypothesis (D4-v2)**: mechanism confirmed — MLA KV can't be TP-sharded,
+   so D1-TP8 holds 1.32M KV tokens per 8 GPUs vs DEP16's 1.63M PER GPU (~10×/GPU).
+   D4-v2 is the only variant whose per-GPU throughput RISES with concurrency
+   (1,446@c35 → **1,705@c160**, the best wide-EP/PD number measured), but D1 still
+   leads ~1.8× at its normal operating points — per-request prefill compute (8 GPUs vs
+   1 per request) plus D1's 2.8 TiB/node offload keep it ahead in the tested range.
+6. Caveats: EPP restarts cold the in-memory prefix index (first run after any config
    swap loses up to −40% — only warm runs are comparable); c160 runs show high
-   replay-to-replay variance; decode was never the bottleneck (TPOT ≤ 12 ms p50
+   replay-to-replay variance; decode was never the bottleneck (TPOT ≤ 16 ms p50
    everywhere, MTP-5 at 3.5 ms on TP8).

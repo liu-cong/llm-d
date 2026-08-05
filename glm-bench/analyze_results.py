@@ -33,6 +33,13 @@ RUNS = [
     ("d2-pd-6p2d", "run-20260803-glm-fp8-vllm-pd-a4pr-16n", "d2-6p2d-final-c160", {0: 160}, 128),
     ("d3-pd-6p2d", "run-20260803-glm-fp8-vllm-pd-a4pr-16n", "d3-6p2d-final-c115", {0: 115}, 128),
     ("d3-pd-6p2d", "run-20260803-glm-fp8-vllm-pd-a4pr-16n", "d3-6p2d-final-c160", {0: 160}, 128),
+    ("d4v1-agg", "run-20260804-glm-fp8-d4-agg-dep16", "sweep", {0: 16, 1: 32, 2: 48, 3: 64, 4: 96}, 32),
+    ("d4v1-agg", "run-20260804-glm-fp8-d4-agg-dep16", "final-c35", {0: 35}, 32),
+    ("d4v1-agg", "run-20260804-glm-fp8-d4-agg-dep16", "final-c58", {0: 58}, 32),
+    ("d4v2-agg", "run-20260804-glm-fp8-d4-agg-dep16", "v2-sweep", {0: 32, 1: 64, 2: 128, 3: 192}, 32),
+    ("d4v2-agg", "run-20260804-glm-fp8-d4-agg-dep16", "v2-final-c35", {0: 35}, 32),
+    ("d4v2-agg", "run-20260804-glm-fp8-d4-agg-dep16", "v2-final-c58", {0: 58}, 32),
+    ("d4v2-agg", "run-20260804-glm-fp8-d4-agg-dep16", "v2-final-c160", {0: 160}, 32),
 ]
 
 

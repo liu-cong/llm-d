@@ -1,0 +1,34 @@
+# D4-v2 router config (2026-08-05): EXACTLY D1's active optimized-baseline
+# config — prefix-cache-affinity-filter + token-load-scorer with the
+# approx-prefix-cache and inflight-load producers (all EPP-side state, no
+# server-metrics scraping), so the router is the same "token-load-aware"
+# design that served D1. Only per-deployment change: peakPrefillThroughput
+# recalibrated from D1's TP8 value (16800 per 8-GPU server) to the measured
+# DEP16 per-rank value (~4741 tok/s per DP-rank endpoint; each (pod,port) is
+# one endpoint via InferencePool wide-ep targetPorts 8000-8007).
+#
+# v1 (default queue/kv-util/prefix-scorer profile) is superseded; see git/
+# folder history. Overwrites ConfigMap pd-epp; roll pd-epp after applying.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pd-epp
+  namespace: glm-bench
+  labels:
+    app.kubernetes.io/name: pd-epp
+data:
+  wide-ep-lws-config.yaml: |
+    apiVersion: llm-d.ai/v1alpha1
+    kind: EndpointPickerConfig
+    plugins:
+    - type: approx-prefix-cache-producer
+    - type: inflight-load-producer
+    - type: prefix-cache-affinity-filter
+      parameters:
+        peakPrefillThroughput: 4741
+    - type: token-load-scorer
+    schedulingProfiles:
+    - name: default
+      plugins:
+      - pluginRef: prefix-cache-affinity-filter
+      - pluginRef: token-load-scorer

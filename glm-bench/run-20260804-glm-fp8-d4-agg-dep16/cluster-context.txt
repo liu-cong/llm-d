@@ -1,0 +1,9 @@
+GCP project : conliu-gke-dev
+Cluster     : us-west8 (zonal, us-west8-c)
+Context     : gke_conliu-gke-dev_us-west8-c_us-west8
+GPU pool    : a4-rdma-spot (a4-highgpu-8g spot, 5 nodes, RDMA rdma-0..7)
+D4 layout   : aggregate DEP16 x 2 instances = 4 nodes / 32 GPUs (1 node spare)
+Namespace   : glm-bench (reuses SA glm, secret llm-d-hf-token, envoy CM,
+              InferencePool wide-ep, pd-epp deployment; CM swapped to D4 config)
+Bench image : us-west2-docker.pkg.dev/conliu-gke-dev/glm-bench/inference-perf:weka-glm-bench-20260730a
+Gateway     : http://pd-epp.glm-bench.svc.cluster.local:80

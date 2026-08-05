@@ -1,0 +1,49 @@
+# D4-v2 ("D1 + wide EP") sweep: c32 -> c64 -> c128 -> c192, 7 min per stage.
+# High-concurrency stages target the KV-capacity hypothesis: D1 (TP8) has only
+# 1.32M KV tokens per 8-GPU replica (MLA KV replicated across TP ranks) and
+# dipped at c128; DEP16 has ~10x per-GPU KV, so if the workload is KV-bound
+# the gap should close/invert as concurrency grows.
+load:
+  type: trace_session_replay
+  stages:
+    - concurrent_sessions: 32
+      num_sessions: 96
+      timeout: 420
+    - concurrent_sessions: 64
+      num_sessions: 192
+      timeout: 420
+    - concurrent_sessions: 128
+      num_sessions: 384
+      timeout: 420
+    - concurrent_sessions: 192
+      num_sessions: 576
+      timeout: 420
+  num_workers: 8
+  worker_max_concurrency: 128
+  request_timeout: 1800
+api:
+  type: chat
+  streaming: true
+server:
+  type: vllm
+  model_name: glm-5.2-fp8
+  base_url: http://pd-epp.glm-bench.svc.cluster.local:80
+  ignore_eos: true
+tokenizer:
+  pretrained_model_name_or_path: /tokenizer
+data:
+  type: weka_trace_replay
+  weka_trace_replay:
+    hf_dataset_path: "semianalysisai/cc-traces-weka-with-subagents-060826-256k"
+    num_dataset_entries: 391
+    duplicate_sessions_target: 1300
+    inject_random_session_id: true
+    use_static_model: true
+    static_model_name: "glm-5.2-fp8"
+    default_block_size: 64
+    skip_invalid_files: true
+report:
+  request_lifecycle:
+    summary: true
+    per_stage: true
+    per_request: true

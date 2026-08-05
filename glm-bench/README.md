@@ -9,6 +9,10 @@ nodes, driven by real agentic coding traces:
   guide): DEP16 LeaderWorkerSet groups + llm-d PD router.
 - **D3** — same serving stack as D2, improved EPP (router) config with utilization
   filters and measured prefix-affinity calibration.
+- **D4** — aggregate wide-EP (no PD): DEP16 groups serving prefill+decode in one pool.
+  v2 = "D1 + wide EP" (D1-aligned engine + D1's token-load router) — the KV-capacity
+  experiment: MLA KV can't be TP-sharded, so DEP16 yields ~10× KV tokens/GPU vs TP8.
+  Folder: `run-20260804-glm-fp8-d4-agg-dep16/` (manifests 01/02 are the v2 state).
 
 Headline results and exact configurations: **[COMPARISON.md](COMPARISON.md)**.
 Per-campaign details, raw manifests, bench configs, and result metrics live in the
@@ -158,7 +162,27 @@ kubectl -n glm-bench rollout restart deploy/pd-epp
 Expected (6P2D, 128 GPUs, warm): **in ≈ 198k tok/s @ c115 (≈1.55k/GPU)** — higher
 peak at lower concurrency than D2, TTFT p50 ≤ D2's at matched points.
 
-## 4. Analysis
+## 4. D4 — aggregate wide-EP (no PD), "D1 + wide EP"
+
+```bash
+cd run-20260804-glm-fp8-d4-agg-dep16
+kubectl apply -f manifests/02-d4-epp-configmap.yaml   # D1's token-load/prefix-affinity router (peak 4741/rank)
+kubectl -n glm-bench rollout restart deploy pd-epp
+kubectl apply -f manifests/01-agg-lws.yaml            # aggregate DEP16 x2 (v2 state: MTP-5, 350GiB/rank offload, default batching)
+# verify per instruction: EPP sees 8 endpoints/pod; same-prefix probes stick to one rank
+./scripts/run_bench.sh smoke-c2 configs/config-smoke-c2.yaml
+./scripts/run_bench.sh sweep    configs/config-sweep-v2.yaml   # c32/64/128/192
+./scripts/run_bench.sh final-c35  configs/config-final-c35.yaml
+./scripts/run_bench.sh final-c58  configs/config-final-c58.yaml
+./scripts/run_bench.sh final-c160 configs/config-final-c160.yaml
+```
+
+Expected (32 GPUs, warm): c35 ≈ 46k in-tok/s (1,446/GPU), c160 ≈ **54.6k (1,705/GPU —
+best wide-EP number)**; TTFT p50 ~9 s. Key mechanism: MLA KV cannot be TP-sharded, so
+DEP16 holds ~10× the KV tokens per GPU vs TP8 (1.63M/GPU vs 165k/GPU) — but D1 still
+leads ~1.8× on throughput in the tested range (8-GPU-per-request prefill).
+
+## 5. Analysis
 
 Each run's report directory contains `stage_*_lifecycle_metrics.json` (throughput +
 TTFT/TPOT/e2e percentiles) and `summary_session_lifecycle_metrics.json` (session
