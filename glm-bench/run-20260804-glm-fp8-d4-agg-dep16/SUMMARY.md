@@ -123,3 +123,29 @@ Sweep (7-min stages): c32 887 / c64 795 / **c128 1,306** / c192 1,018 per GPU.
 - Two local DNS outages killed laptop-side launchers mid-chain (c35 at 10:04,
   c160 at 10:59); both pods completed in-cluster, results collected manually via
   chunked kubectl cp. Serving pods: 0 restarts across the entire v2 window.
+
+---
+
+# DeepEP probe on llm-d CUDA images (2026-08-05, user suggestion)
+
+Question: prior DeepEP failures were with the NVSHMEM bundled in
+vllm-openai:v0.26.0 — do the llm-d CUDA images (RoCE fixes) unblock DeepEP?
+Probe: 1× DEP16 group (2 nodes), `deepep_high_throughput`, IBGDA env per the
+llm-d GKE overlay. Manifest: `manifests/03-deepep-probe-lws.yaml`.
+
+| Image | NVSHMEM/IBGDA transport | Serving GLM-5.2-FP8 |
+|---|---|---|
+| `vllm/vllm-openai:v0.26.0` (all campaign runs) | ❌ `init failed for transport: IBGDA` → transport map failed (GKE driver regkeys); IBRC insufficient for DeepEP internode | ✅ (with allgather) |
+| `ghcr.io/llm-d/llm-d-cuda:v0.8.1` | ✅ **IBGDA/DeepEP init SUCCEEDED, engine READY** — the RoCE fixes are real | ❌ dies on first forward: GLM-5.2 sparse-attn indexer needs `fp8_fp4_mqa_logits` → `RuntimeError: DeepGEMM backend is not available or outdated` |
+| `ghcr.io/llm-d/llm-d-cuda-dev:main` | (not reached) | ❌ instant argparse failure: build lacks `--data-parallel-multi-port-external-lb`, `--data-parallel-supervisor-port`, `--all2all-backend`, `--disable-access-log-for-endpoints` (different vLLM lineage / launch scheme) |
+
+**Conclusion:** DeepEP-on-RoCE is unblocked by llm-d's NVSHMEM build, but no
+currently published image combines all three requirements for GLM-5.2-FP8
+wide-EP on GKE: (a) llm-d's NVSHMEM/DeepEP RoCE build, (b) DeepGEMM new enough
+for `fp8_fp4_mqa_logits` (GLM-5.2 sparse indexer), (c) the DP-supervisor
+launch patches our manifests use. Paths: rebuild llm-d-cuda v0.8.x with
+updated deep_gemm; or pip-install/build newer DeepGEMM into v0.8.1 at pod
+start (untested; JIT build risk); or wait for the flags/deep_gemm to converge
+on dev:main. Expected payoff once solved: replace allgather (EP-fold activation
+broadcast per MoE layer) with sparse GPU-initiated all2all — the biggest known
+lever on wide-EP prefill throughput here.
