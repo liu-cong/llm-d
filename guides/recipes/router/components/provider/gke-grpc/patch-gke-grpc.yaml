@@ -1,0 +1,8 @@
+- op: replace
+  path: /spec/default/config
+  value:
+    type: GRPC
+    grpcHealthCheck:
+      portSpecification: USE_FIXED_PORT
+      port: 8000
+      grpcServiceName: /vllm.grpc.engine.VllmEngine/HealthCheck

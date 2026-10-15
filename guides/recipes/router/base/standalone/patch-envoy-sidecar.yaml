@@ -1,0 +1,64 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: epp
+spec:
+  template:
+    spec:
+      containers:
+        - name: epp
+        - name: envoy-proxy
+          image: docker.io/envoyproxy/envoy:distroless-v1.33.2
+          imagePullPolicy: IfNotPresent
+          command:
+            - envoy
+          args:
+            - --service-node
+            - envoy-proxy
+            - --log-level
+            - warn
+            - --cpuset-threads
+            - --drain-strategy
+            - immediate
+            - --drain-time-s
+            - "60"
+            - -c
+            - /etc/envoy/envoy.yaml
+          env:
+            - name: NS_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+          ports:
+            - name: http-8081
+              containerPort: 8081
+            - name: metrics-19001
+              containerPort: 19001
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 19001
+              scheme: HTTP
+            periodSeconds: 5
+            timeoutSeconds: 1
+            successThreshold: 1
+            failureThreshold: 1
+          lifecycle:
+            preStop:
+              sleep:
+                seconds: 5
+          volumeMounts:
+            - name: envoy-config-volume
+              mountPath: /etc/envoy
+              readOnly: true
+      volumes:
+        - name: envoy-config-volume
+          configMap:
+            name: envoy-config
+            items:
+              - key: envoy.yaml
+                path: envoy.yaml

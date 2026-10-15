@@ -1,0 +1,36 @@
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+
+configMapGenerator:
+  - name: epp-config
+    behavior: replace
+    files:
+      - epp-config.yaml
+
+patches:
+  - target:
+      kind: Deployment
+      name: epp
+    patch: |
+      - op: add
+        path: /spec/template/spec/containers/0/args/-
+        value: --allow-experimental-plugins=true
+  - target:
+      kind: InferencePool
+      name: inference-pool
+    patch: |
+      - op: replace
+        path: /spec/targetPorts
+        value:
+          - number: 8000
+          - number: 8001
+          - number: 8002
+          - number: 8003
+          - number: 8004
+          - number: 8005
+          - number: 8006
+          - number: 8007
+      - op: replace
+        path: /spec/selector/matchLabels
+        value:
+          llm-d.ai/guide: wide-ep

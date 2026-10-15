@@ -1,0 +1,15 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: epp-monitor
+  labels:
+    app.kubernetes.io/name: epp
+spec:
+  endpoints:
+    - interval: 10s
+      port: http-metrics
+      path: /metrics
+  jobLabel: app.kubernetes.io/name
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: epp

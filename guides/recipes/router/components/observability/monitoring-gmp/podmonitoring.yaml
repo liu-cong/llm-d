@@ -1,0 +1,15 @@
+apiVersion: monitoring.googleapis.com/v1
+kind: PodMonitoring
+metadata:
+  name: epp-monitor
+  labels:
+    app.kubernetes.io/name: epp
+spec:
+  endpoints:
+    - port: metrics
+      scheme: http
+      interval: 10s
+      path: /metrics
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: epp

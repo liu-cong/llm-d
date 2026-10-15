@@ -1,0 +1,56 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: epp
+spec:
+  template:
+    spec:
+      containers:
+        - name: epp
+        - $patch: delete
+          name: envoy-proxy
+        - name: agentgateway-proxy
+          image: cr.agentgateway.dev/agentgateway:0.12.2
+          imagePullPolicy: IfNotPresent
+          args:
+            - -f
+            - /config/config.yaml
+          ports:
+            - name: http
+              containerPort: 8081
+            - name: metrics-15020
+              containerPort: 15020
+            - name: readiness-15021
+              containerPort: 15021
+          readinessProbe:
+            httpGet:
+              path: /healthz/ready
+              port: 15021
+              scheme: HTTP
+            periodSeconds: 5
+            timeoutSeconds: 1
+            successThreshold: 1
+            failureThreshold: 1
+          startupProbe:
+            httpGet:
+              path: /healthz/ready
+              port: 15021
+              scheme: HTTP
+            periodSeconds: 1
+            timeoutSeconds: 2
+            successThreshold: 1
+            failureThreshold: 60
+          lifecycle:
+            preStop:
+              sleep:
+                seconds: 5
+          volumeMounts:
+            - name: agentgateway-config-template
+              mountPath: /config
+              readOnly: true
+      volumes:
+        - $patch: delete
+          name: envoy-config-volume
+        - name: agentgateway-config-template
+          configMap:
+            name: agentgateway-config

@@ -1,0 +1,52 @@
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+
+images:
+  - name: ghcr.io/llm-d/llm-d-router-epp
+    newTag: main
+
+configMapGenerator:
+  - name: epp-config
+    behavior: replace
+    files:
+      - epp-config.yaml
+
+patches:
+  - target:
+      kind: InferencePool
+      name: inference-pool
+    patch: |-
+      - op: replace
+        path: /spec/selector/matchLabels/llm-d.ai~1guide
+        value: p2p-kv-cache-sharing
+  - target:
+      kind: Deployment
+      name: epp
+    patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: epp
+      spec:
+        replicas: 2
+        template:
+          spec:
+            containers:
+              - name: epp
+                imagePullPolicy: Always
+                env:
+                  - name: HF_TOKEN
+                    valueFrom:
+                      secretKeyRef:
+                        name: llm-d-hf-token
+                        key: HF_TOKEN
+  - target:
+      kind: Deployment
+      name: epp
+    patch: |-
+      - op: add
+        path: /spec/template/spec/containers/0/args/-
+        value: --ha-enable-leader-election=false
+      - op: add
+        path: /spec/template/spec/containers/0/args/-
+        value: --allow-experimental-plugins

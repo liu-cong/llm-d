@@ -1,0 +1,35 @@
+apiVersion: networking.gke.io/v1
+kind: HealthCheckPolicy
+metadata:
+  name: healthcheck
+  labels:
+    app.kubernetes.io/name: epp
+spec:
+  targetRef:
+    group: inference.networking.k8s.io
+    kind: InferencePool
+    name: inference-pool
+  default:
+    timeoutSec: 2
+    checkIntervalSec: 2
+    config:
+      type: HTTP
+      httpHealthCheck:
+        requestPath: /health
+        port: 8000
+---
+apiVersion: networking.gke.io/v1
+kind: GCPBackendPolicy
+metadata:
+  name: backend-policy
+  labels:
+    app.kubernetes.io/name: epp
+spec:
+  targetRef:
+    group: inference.networking.k8s.io
+    kind: InferencePool
+    name: inference-pool
+  default:
+    timeoutSec: 300
+    logging:
+      enabled: true

@@ -1,0 +1,49 @@
+nameReference:
+  - kind: Service
+    version: v1
+    fieldSpecs:
+      - path: spec/endpointPickerRef/name
+        group: inference.networking.k8s.io
+        kind: InferencePool
+      - path: spec/host
+        group: networking.istio.io
+        kind: DestinationRule
+  - kind: InferencePool
+    group: inference.networking.k8s.io
+    fieldSpecs:
+      - path: spec/rules/backendRefs/name
+        group: gateway.networking.k8s.io
+        kind: HTTPRoute
+      - path: spec/poolRef/name
+        group: inference.networking.x-k8s.io
+        kind: InferenceObjective
+      - path: spec/targetRef/name
+        group: networking.gke.io
+        kind: HealthCheckPolicy
+      - path: spec/targetRef/name
+        group: networking.gke.io
+        kind: GCPBackendPolicy
+      - path: spec/template/spec/containers/args
+        group: apps
+        kind: Deployment
+  - kind: ServiceAccount
+    version: v1
+    fieldSpecs:
+      - path: metadata/annotations/kubernetes.io\/service-account.name
+        version: v1
+        kind: Secret
+  - kind: Secret
+    version: v1
+    fieldSpecs:
+      - path: spec/endpoints/authorization/credentials/name
+        group: monitoring.coreos.com
+        kind: ServiceMonitor
+      - path: spec/endpoints/oauth2/clientId/secret/name
+        group: monitoring.googleapis.com
+        kind: PodMonitoring
+  - kind: Deployment
+    group: apps
+    fieldSpecs:
+      - path: spec/scaleTargetRef/name
+        group: autoscaling
+        kind: HorizontalPodAutoscaler
