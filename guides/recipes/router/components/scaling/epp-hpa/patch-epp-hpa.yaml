@@ -1,0 +1,9 @@
+- op: remove
+  path: /spec/replicas
+- op: replace
+  path: /spec/strategy
+  value:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1

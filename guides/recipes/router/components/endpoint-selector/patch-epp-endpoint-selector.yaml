@@ -1,0 +1,12 @@
+- op: replace
+  path: /spec/template/spec/containers/0/args/0
+  value: --endpoint-selector
+- op: replace
+  path: /spec/template/spec/containers/0/args/1
+  value: llm-d.ai/inference-serving=true
+- op: replace
+  path: /spec/template/spec/containers/0/args/2
+  value: --endpoint-target-ports
+- op: replace
+  path: /spec/template/spec/containers/0/args/3
+  value: "8000"

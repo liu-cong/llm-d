@@ -1,0 +1,13 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: epp
+spec:
+  template:
+    spec:
+      containers:
+        - $patch: delete
+          name: envoy-proxy
+      volumes:
+        - $patch: delete
+          name: envoy-config-volume

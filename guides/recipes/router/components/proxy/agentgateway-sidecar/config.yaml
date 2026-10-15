@@ -1,0 +1,29 @@
+config:
+  statsAddr: "0.0.0.0:15020"
+  readinessAddr: "0.0.0.0:15021"
+binds:
+  - port: 8081
+    listeners:
+      - name: default
+        protocol: HTTP
+        routes:
+          - name: standalone-epp
+            matches:
+              - path:
+                  pathPrefix: /
+            backends:
+              - service:
+                  name: "default/vllm"
+                  port: 8000
+                policies:
+                  inferenceRouting:
+                    endpointPicker:
+                      host: "127.0.0.1:9002"
+                    destinationMode: passthrough
+services:
+  - name: "vllm"
+    namespace: "default"
+    hostname: "vllm"
+    vips: []
+    ports:
+      8000: 8000

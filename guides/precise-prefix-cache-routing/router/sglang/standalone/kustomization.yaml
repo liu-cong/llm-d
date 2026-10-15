@@ -1,0 +1,52 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namePrefix: precise-prefix-cache-routing-
+
+resources:
+  - ../../../../recipes/router/base/standalone
+
+configMapGenerator:
+  - name: epp-config
+    behavior: replace
+    files:
+      - epp-config.yaml
+
+patches:
+  - target:
+      kind: InferencePool
+      name: inference-pool
+    patch: |-
+      - op: replace
+        path: /spec/selector/matchLabels/llm-d.ai~1guide
+        value: precise-prefix-cache-routing
+  - target:
+      kind: Deployment
+      name: epp
+    patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: epp
+      spec:
+        replicas: 1
+        template:
+          spec:
+            containers:
+              - name: epp
+                env:
+                  - name: HF_TOKEN
+                    valueFrom:
+                      secretKeyRef:
+                        name: llm-d-hf-token
+                        key: HF_TOKEN
+  - target:
+      kind: Deployment
+      name: epp
+    patch: |-
+      - op: add
+        path: /spec/template/spec/containers/0/args/-
+        value: --ha-enable-leader-election=false
+      - op: add
+        path: /spec/template/spec/containers/0/args/-
+        value: --model-server-metrics-type=sglang

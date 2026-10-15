@@ -1,0 +1,77 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: epp
+spec:
+  template:
+    spec:
+      containers:
+        - name: epp
+          env:
+            - name: PREDICTION_SERVER_URL
+              value: "http://localhost:8001"
+            - name: TRAINING_SERVER_URL
+              value: "http://localhost:8000"
+        - name: training-server
+          image: ghcr.io/llm-d/llm-d-latency-predictor:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8000
+          envFrom:
+            - configMapRef:
+                name: epp-latency-predictor-training
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: "2"
+              memory: 4Gi
+            limits:
+              cpu: "2"
+              memory: 4Gi
+        - name: prediction-server-1
+          image: ghcr.io/llm-d/llm-d-latency-predictor:latest
+          imagePullPolicy: IfNotPresent
+          command:
+            - uvicorn
+            - predict:app
+            - --host
+            - 127.0.0.1
+            - --port
+            - "8001"
+            - --workers
+            - "1"
+          ports:
+            - containerPort: 8001
+          envFrom:
+            - configMapRef:
+                name: epp-latency-predictor-prediction
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8001
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: 8001
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: "1"
+              memory: 1Gi
+            limits:
+              cpu: "2"
+              memory: 2Gi

@@ -1,0 +1,23 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../../standalone
+
+patches:
+  - target:
+      kind: InferencePool
+    patch: |
+      - op: replace
+        path: /spec/targetPorts
+        value:
+          - number: 8000
+          - number: 8001
+          - number: 8002
+          - number: 8003
+      - op: replace
+        path: /spec/selector/matchLabels
+        value:
+          llm-d.ai/guide: pd-disaggregation
+          llm-d.ai/accelerator-variant: npu
+          llm-d.ai/accelerator-vendor: rebellions

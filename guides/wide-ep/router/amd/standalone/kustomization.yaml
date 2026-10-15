@@ -1,0 +1,26 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../../gpu/standalone
+
+configMapGenerator:
+  - name: epp-config
+    behavior: replace
+    files:
+      - epp-config.yaml
+
+patches:
+  - target:
+      kind: InferencePool
+    patch: |
+      - op: replace
+        path: /spec/targetPorts
+        value:
+          - number: 8000
+      - op: replace
+        path: /spec/selector/matchLabels
+        value:
+          llm-d.ai/guide: wide-ep
+          llm-d.ai/accelerator-variant: gpu
+          llm-d.ai/accelerator-vendor: amd

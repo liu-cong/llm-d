@@ -1,0 +1,13 @@
+- op: replace
+  path: /spec/replicas
+  value: 3
+- op: replace
+  path: /spec/strategy
+  value:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 2
+      maxSurge: 0
+- op: add
+  path: /spec/template/spec/containers/0/args/-
+  value: --ha-enable-leader-election=true

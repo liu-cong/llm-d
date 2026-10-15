@@ -131,7 +131,7 @@ helm upgrade <release-name> \
 `peakPrefillThroughput` for the `prefix-cache-affinity-filter` plugin on your own
 hardware/model. See its [README](calibration/README.md).
 
-## Values Layering
+## Values Layering (Helm)
 
 Both modes share a common `base.values.yaml` containing the router image, ports, and common pod selector labels. Feature values (monitoring, tracing) and guide-specific values are layered on top:
 
@@ -141,4 +141,50 @@ base.values.yaml                              # shared defaults (this directory)
   + features/monitoring-gke.values.yaml       # optional GKE Managed Prometheus PodMonitoring
   + features/agentgateway-proxy.values.yaml   # required for agentgateway config args
   + <guide>/router/<guide>.values.yaml     # guide-specific overrides
+```
+
+## Kustomize Deployment
+
+Every router recipe can also be deployed with `kubectl apply -k` using the shared bases in [`base/`](base/) and opt-in [`components/`](components/):
+
+```
+guides/recipes/router/
+├── base/
+│   ├── common/                  # InferencePool, EPP Deployment/Service/RBAC, epp-config
+│   ├── gateway/                 # Gateway API mode
+│   └── standalone/              # Standalone mode (EPP + Envoy sidecar + HTTP port 80)
+└── components/
+    ├── endpoint-selector/       # Replace InferencePool with --endpoint-selector
+    ├── proxy/
+    │   ├── agentgateway-sidecar/# Swap Envoy sidecar for agentgateway sidecar
+    │   ├── envoy-service/       # Dedicated Envoy proxy Deployment + Service
+    │   └── proxy-hpa/           # HPA for dedicated Envoy proxy
+    ├── scaling/
+    │   ├── leader-election/     # Active-passive HA (replicas=3 + Lease RBAC)
+    │   └── epp-hpa/             # Active-active HPA for EPP
+    ├── sidecars/
+    │   ├── tokenizer-python/    # Python UDS tokenizer sidecar
+    │   ├── tokenizer-rust/      # Rust UDS tokenizer sidecar
+    │   └── latency-predictor/   # Latency predictor sidecar (training + prediction)
+    ├── provider/
+    │   ├── httproute/           # HTTPRoute + EPP --http-route-name flag
+    │   ├── gke/                 # HealthCheckPolicy + GCPBackendPolicy
+    │   ├── gke-grpc/            # GKE HTTP2/gRPC annotation on EPP Service
+    │   └── istio/               # DestinationRule (SIMPLE TLS)
+    └── observability/
+        ├── metrics-auth/               # ClusterRole + ClusterRoleBinding for /metrics auth
+        ├── monitoring-prometheus/      # Unauthenticated Prometheus ServiceMonitor
+        ├── monitoring-prometheus-auth/ # Authenticated Prometheus ServiceMonitor + token Secret
+        ├── monitoring-gmp/             # GKE Managed Prometheus PodMonitoring
+        └── tracing/                    # OpenTelemetry tracing flags and env vars
+```
+
+### Deploy a Guide Overlay with Kustomize
+
+```bash
+# Standalone mode (default Envoy sidecar):
+kubectl apply -k ${REPO_ROOT}/guides/<your-guide>/router/standalone -n ${NAMESPACE}
+
+# Gateway API mode:
+kubectl apply -k ${REPO_ROOT}/guides/<your-guide>/router/gateway -n ${NAMESPACE}
 ```

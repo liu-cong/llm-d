@@ -1,0 +1,81 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: epp
+  labels:
+    app.kubernetes.io/name: epp
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: epp
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: epp
+    spec:
+      serviceAccountName: epp
+      terminationGracePeriodSeconds: 130
+      containers:
+        - name: epp
+          image: ghcr.io/llm-d/llm-d-router-endpoint-picker:latest
+          imagePullPolicy: IfNotPresent
+          args:
+            - --pool-name
+            - inference-pool
+            - --pool-group
+            - inference.networking.k8s.io
+            - --zap-encoder
+            - json
+            - --config-file
+            - /config/epp-config.yaml
+            - --grpc-health-port
+            - "9003"
+            - --v=2
+            - --tracing=false
+          resources:
+            requests:
+              cpu: "8"
+              memory: 8Gi
+            limits:
+              memory: 16Gi
+          ports:
+            - name: grpc
+              containerPort: 9002
+            - name: grpc-health
+              containerPort: 9003
+            - name: metrics
+              containerPort: 9090
+          livenessProbe:
+            grpc:
+              port: 9003
+              service: liveness
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            grpc:
+              port: 9003
+              service: readiness
+            periodSeconds: 2
+          lifecycle:
+            preStop:
+              sleep:
+                seconds: 5
+          env:
+            - name: NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+          volumeMounts:
+            - name: plugins-config-volume
+              mountPath: /config
+      volumes:
+        - name: plugins-config-volume
+          configMap:
+            name: epp-config

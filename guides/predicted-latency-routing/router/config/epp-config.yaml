@@ -1,0 +1,21 @@
+apiVersion: llm-d.ai/v1
+kind: EndpointPickerConfig
+plugins:
+  - type: approx-prefix-cache-producer
+    parameters:
+      maxPrefixTokensToMatch: 262144
+  - type: predicted-latency-producer
+  - type: prefix-cache-affinity-filter
+    name: loose-affinity-filter
+    parameters:
+      affinityThreshold: 0.8
+      ttftSource: latencyPredictor
+      maxTTFTPenaltyMs: 5000
+  - type: latency-scorer
+  - type: weighted-random-picker
+schedulingProfiles:
+  - name: default
+    plugins:
+      - pluginRef: loose-affinity-filter
+      - pluginRef: latency-scorer
+      - pluginRef: weighted-random-picker
